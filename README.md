@@ -7,6 +7,17 @@
 - `frontend-nextjs/`: 基于Next.js的前端项目
 - `backend-flask/`: 基于Flask的后端API服务
 
+## GitHub仓库
+
+项目代码托管在GitHub上：https://github.com/Hofmann8/FlexCrew-online.git
+
+你可以通过以下命令克隆仓库：
+
+```bash
+git clone https://github.com/Hofmann8/FlexCrew-online.git
+cd FlexCrew-online
+```
+
 ## 开发环境设置
 
 ### 前端（Next.js）
