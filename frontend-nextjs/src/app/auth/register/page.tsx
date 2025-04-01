@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { RegisterResponse } from '@/types';
 
 const RegisterPage = () => {
     const router = useRouter();
@@ -11,6 +12,7 @@ const RegisterPage = () => {
 
     const [formData, setFormData] = useState({
         username: '',
+        name: '',
         email: '',
         password: '',
         confirmPassword: '',
@@ -28,7 +30,7 @@ const RegisterPage = () => {
         setFormError('');
 
         // 表单验证
-        if (!formData.username.trim() || !formData.email.trim() ||
+        if (!formData.username.trim() || !formData.name.trim() || !formData.email.trim() ||
             !formData.password.trim() || !formData.confirmPassword.trim()) {
             setFormError('所有字段都是必填的');
             return;
@@ -40,23 +42,24 @@ const RegisterPage = () => {
         }
 
         // 邮箱格式验证
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const emailRegex = /^[^\s@]+@mail\.dlut\.edu\.cn$/;
         if (!emailRegex.test(formData.email)) {
-            setFormError('请输入有效的邮箱地址');
+            setFormError('请使用大连理工大学邮箱（@mail.dlut.edu.cn）');
             return;
         }
 
         try {
             // 执行注册
-            const success = await register(
+            const response = await register(
                 formData.username,
+                formData.name,
                 formData.email,
                 formData.password
             );
 
-            if (success) {
-                // 注册成功，重定向到登录页面
-                router.push('/auth/login?registered=true');
+            if (response) {
+                // 注册成功，重定向到验证码页面
+                router.push(`/auth/verify?userId=${response.userId}&email=${response.email}`);
             } else {
                 setFormError('注册失败，请稍后再试');
             }
@@ -102,6 +105,22 @@ const RegisterPage = () => {
                         </div>
 
                         <div className="mb-4">
+                            <label htmlFor="name" className="block text-gray-700 font-medium mb-2">
+                                真实姓名
+                            </label>
+                            <input
+                                type="text"
+                                id="name"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                placeholder="请输入您的真实姓名"
+                                required
+                            />
+                        </div>
+
+                        <div className="mb-4">
                             <label htmlFor="email" className="block text-gray-700 font-medium mb-2">
                                 邮箱
                             </label>
@@ -112,9 +131,12 @@ const RegisterPage = () => {
                                 value={formData.email}
                                 onChange={handleChange}
                                 className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                                placeholder="请输入您的邮箱地址"
+                                placeholder="请输入大连理工大学邮箱地址"
                                 required
                             />
+                            <p className="mt-1 text-sm text-gray-500">
+                                必须使用大连理工大学邮箱（@mail.dlut.edu.cn）
+                            </p>
                         </div>
 
                         <div className="mb-4">

@@ -14,6 +14,11 @@ class User(db.Model):
     role = db.Column(db.String(20), default='member')
     # 舞种: breaking, popping, hiphop, locking等，仅对leader角色有意义
     dance_type = db.Column(db.String(50), nullable=True)
+    # 邮箱验证相关字段
+    email_verified = db.Column(db.Boolean, default=False)
+    email_verify_code = db.Column(db.String(6), nullable=True)
+    email_verify_code_expires = db.Column(db.DateTime, nullable=True)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # 关系
@@ -36,6 +41,10 @@ class User(db.Model):
     def can_book_course(self):
         """判断用户是否有权限预约课程"""
         return self.role == 'member'
+    
+    def requires_email_verification(self):
+        """判断用户是否需要邮箱验证"""
+        return self.role == 'member'
         
     def to_dict(self):
         """转换为字典"""
@@ -45,13 +54,11 @@ class User(db.Model):
             'name': self.name,
             'email': self.email,
             'role': self.role,
-            'canBookCourse': self.can_book_course()
+            'canBookCourse': self.can_book_course(),
+            'danceType': self.dance_type,  # 总是返回舞种信息，无论是否为领队
+            'emailVerified': self.email_verified
         }
         
-        # 如果是领队，添加舞种信息
-        if self.role == 'leader' and self.dance_type:
-            data['danceType'] = self.dance_type
-            
         return data
     
     def __repr__(self):

@@ -28,16 +28,31 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
     };
 
     try {
+        // 记录请求信息，便于调试
+        const isCurrentUserRequest = endpoint === '/users/me';
+        if (isCurrentUserRequest) {
+            console.log('发送getCurrentUser请求，令牌:', token ? `${token.substring(0, 10)}...` : '无');
+        }
+
         const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+        if (isCurrentUserRequest) {
+            console.log('getCurrentUser响应状态:', response.status);
+        }
 
         // 处理401错误（未授权），可能是token过期
         if (response.status === 401) {
             // 如果在浏览器环境中，清除本地存储的认证信息
             if (typeof window !== 'undefined') {
+                console.warn('认证失败，清除令牌和用户信息');
                 localStorage.removeItem('auth_token');
                 localStorage.removeItem('user_info');
-                // 可以添加重定向到登录页面的逻辑
-                window.location.href = '/auth/login';
+
+                // 避免在用户手动登出时重定向
+                if (endpoint !== '/auth/logout') {
+                    // 可以添加重定向到登录页面的逻辑
+                    window.location.href = '/auth/login';
+                }
             }
             throw new Error('认证失败，请重新登录');
         }
@@ -49,12 +64,29 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
         try {
             const data = await response.json();
 
+            if (isCurrentUserRequest) {
+                console.log('getCurrentUser响应内容:', data);
+            }
+
             if (!response.ok) {
                 throw new Error(data.message || '请求失败');
             }
 
             return data;
         } catch (jsonError) {
+            // 如果是获取当前用户信息的请求，记录详细错误
+            if (isCurrentUserRequest) {
+                console.error('解析getCurrentUser响应出错:', jsonError);
+
+                // 尝试获取响应文本
+                try {
+                    const textResponse = await responseClone.text();
+                    console.log('getCurrentUser响应文本:', textResponse);
+                } catch (textError) {
+                    console.error('读取响应文本失败:', textError);
+                }
+            }
+
             // 如果解析JSON失败但响应成功，返回简单对象
             if (response.ok) {
                 return { success: true };
@@ -62,6 +94,7 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
             throw new Error('无法解析响应数据');
         }
     } catch (error) {
+        console.error(`API请求失败: ${endpoint}`, error);
         throw error;
     }
 };
@@ -77,10 +110,26 @@ export const authApi = {
     },
 
     // 用户注册
-    register: async (username: string, email: string, password: string) => {
+    register: async (username: string, name: string, email: string, password: string) => {
         return apiRequest('/auth/register', {
             method: 'POST',
-            body: JSON.stringify({ username, email, password }),
+            body: JSON.stringify({ username, name, email, password }),
+        });
+    },
+
+    // 验证邮箱
+    verifyEmail: async (userId: number, code: string) => {
+        return apiRequest('/auth/verify-email', {
+            method: 'POST',
+            body: JSON.stringify({ userId, code }),
+        });
+    },
+
+    // 重新发送验证码
+    resendVerification: async (email: string) => {
+        return apiRequest('/auth/resend-verification', {
+            method: 'POST',
+            body: JSON.stringify({ email }),
         });
     },
 
@@ -201,6 +250,32 @@ export const bookingApi = {
 
 // 用户相关API
 export const userApi = {
+    // 获取所有用户（仅限管理员）
+    getAllUsers: async () => {
+        try {
+            console.log('调用获取所有用户API');
+            const response = await apiRequest('/users');
+            console.log('获取所有用户API响应:', response);
+            return response;
+        } catch (error) {
+            console.error('获取所有用户出错:', error);
+            throw error;
+        }
+    },
+
+    // 按角色获取用户（仅限管理员）
+    getUsersByRole: async (role: 'admin' | 'leader' | 'member') => {
+        try {
+            console.log(`调用获取${role}角色用户API`);
+            const response = await apiRequest(`/users/role/${role}`);
+            console.log(`获取${role}角色用户API响应:`, response);
+            return response;
+        } catch (error) {
+            console.error(`获取${role}角色用户出错:`, error);
+            throw error;
+        }
+    },
+
     // 更新用户资料
     updateProfile: async (userData: any) => {
         return apiRequest('/users/profile', {
@@ -217,14 +292,46 @@ export const userApi = {
         });
     },
 
-    // 获取所有用户（仅限管理员）
-    getAllUsers: async () => {
-        return apiRequest('/users');
+    // 创建新用户（仅限管理员）
+    createUser: async (userData: any) => {
+        return apiRequest('/users', {
+            method: 'POST',
+            body: JSON.stringify(userData),
+        });
     },
 
-    // 按角色获取用户（仅限管理员）
-    getUsersByRole: async (role: 'admin' | 'leader' | 'member') => {
-        return apiRequest(`/users/role/${role}`);
+    // 更新用户角色和舞种（仅限管理员）
+    updateUserRole: async (userId: string, data: { role: string, dance_type?: string, danceType?: string }) => {
+        // 确保使用后端API要求的字段名
+        console.log('更新用户角色和舞种，原始数据:', data);
+
+        // 深拷贝数据对象，避免修改原始对象
+        const apiData = { ...data };
+
+        // 确保发送dance_type而不是danceType
+        if (data.danceType && !data.dance_type) {
+            apiData.dance_type = data.danceType;
+            delete apiData.danceType;
+        }
+
+        console.log('发送给API的数据:', apiData);
+
+        return apiRequest(`/users/${userId}/role`, {
+            method: 'PUT',
+            body: JSON.stringify(apiData),
+        });
+    },
+
+    // 删除用户（仅限管理员）
+    deleteUser: async (userId: string) => {
+        return apiRequest(`/users/${userId}`, {
+            method: 'DELETE',
+        });
+    },
+
+    // 获取特定舞种的成员列表
+    getUsersByDanceType: async (danceType: string) => {
+        return apiRequest(`/users/dance-type/${danceType}`);
     }
 };
 
@@ -241,11 +348,58 @@ export const leaderApi = {
     }
 };
 
-// 导出所有API服务
-export default {
+// 课程管理API（管理员和领队）
+export const adminCourseApi = {
+    // 获取管理的课程列表
+    getAllCourses: async () => {
+        return apiRequest('/admin/courses');
+    },
+
+    // 创建新课程
+    createCourse: async (courseData: any) => {
+        return apiRequest('/admin/courses', {
+            method: 'POST',
+            body: JSON.stringify(courseData),
+        });
+    },
+
+    // 更新课程信息
+    updateCourse: async (courseId: string, courseData: any) => {
+        return apiRequest(`/admin/courses/${courseId}`, {
+            method: 'PUT',
+            body: JSON.stringify(courseData),
+        });
+    },
+
+    // 删除课程
+    deleteCourse: async (courseId: string) => {
+        return apiRequest(`/admin/courses/${courseId}`, {
+            method: 'DELETE',
+        });
+    },
+
+    // 获取课程分配情况（仅限管理员）
+    getCourseAssignments: async () => {
+        return apiRequest('/admin/courses/assignments');
+    },
+
+    // 分配课程归属（仅限管理员）
+    assignCourse: async (courseId: string, assignmentData: { danceType: string, leaderId: string | null }) => {
+        return apiRequest(`/admin/courses/${courseId}/assign`, {
+            method: 'PUT',
+            body: JSON.stringify(assignmentData),
+        });
+    }
+};
+
+// 合并所有API服务
+export const api = {
     auth: authApi,
     courses: courseApi,
     bookings: bookingApi,
     users: userApi,
     leaders: leaderApi,
-}; 
+    adminCourses: adminCourseApi
+};
+
+export default api; 

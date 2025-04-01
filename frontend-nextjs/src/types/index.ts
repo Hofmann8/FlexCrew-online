@@ -1,12 +1,15 @@
 // 用户相关类型
 export interface User {
-    id: string;
+    id: string | number;
     username: string;
     name: string;
     email: string;
     avatar?: string;
     role: 'member' | 'leader' | 'admin';
     dance_type?: string;
+    danceType?: string; // 新增字段，与新后端API保持一致
+    emailVerified?: boolean;
+    canBookCourse?: boolean;
 }
 
 // 登录请求和响应
@@ -27,13 +30,35 @@ export interface Course {
     instructor: string;
     location: string;
     weekday: string;
-    timeSlot: string;
-    originalTimeSlot?: string; // 原始时间段，用于显示
+    timeSlot: string; // 格式: "HH:MM-HH:MM"，例如 "09:00-10:30"
     maxCapacity: number;
     bookedCount?: number; // 当前预订人数
     bookedBy: string[];
     description?: string;
     dance_type?: string;
+    danceType?: string; // 新增字段，与后端接口保持一致
+    leaderId?: string; // 新增字段，与后端接口保持一致
+}
+
+// 创建/更新课程请求
+export interface CourseFormData {
+    name: string;
+    instructor: string;
+    location: string;
+    weekday: string;
+    timeSlot: string; // 格式: "HH:MM-HH:MM"
+    maxCapacity: number;
+    description: string;
+    danceType?: string;
+    leaderId?: string;
+}
+
+// 课程分配信息
+export interface CourseAssignment {
+    leaderId?: string;
+    leaderName?: string;
+    danceType: string;
+    courseCount: number;
 }
 
 // 预约相关类型
@@ -71,14 +96,33 @@ export interface BookingStatusMap {
     [courseId: string]: BookingStatus;
 }
 
-// 课程时间槽
+// 课程时间槽 - 预设选项，但用户可以自定义任意时间
 export const TIME_SLOTS = [
+    '08:00-09:00',
+    '08:30-10:00',
     '09:00-10:00',
+    '09:00-10:30',
     '10:00-11:00',
+    '10:30-12:00',
+    '11:00-12:00',
+    '12:00-13:00',
+    '13:00-14:00',
+    '13:30-15:00',
     '14:00-15:00',
+    '14:00-15:30',
     '15:00-16:00',
+    '15:30-17:00',
+    '16:00-17:00',
+    '17:00-18:00',
+    '17:30-19:00',
+    '18:00-19:00',
+    '18:00-19:30',
     '19:00-20:00',
-    '20:00-21:00'
+    '19:00-20:30',
+    '19:30-21:00',
+    '20:00-21:00',
+    '20:00-21:30',
+    '21:00-22:00'
 ];
 
 // 星期几
@@ -92,14 +136,39 @@ export const WEEKDAYS = [
     '星期日'
 ];
 
+// 舞种类型
+export const DANCE_TYPES = [
+    'breaking',
+    'popping',
+    'locking',
+    'hiphop',
+    'house',
+    'public' // 公共课程
+];
+
+// 注册响应类型
+export interface RegisterResponse {
+    userId: number;
+    email: string;
+    emailVerified: boolean;
+}
+
+// 邮箱验证响应类型
+export interface VerifyEmailResponse {
+    user: User;
+    token: string;
+}
+
 // 认证上下文类型
 export interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
     isLoading: boolean;
-    login: (username: string, password: string) => Promise<boolean>;
+    login: (username: string, password: string) => Promise<boolean | { userId: number, email: string, emailVerified: false }>;
     logout: () => void;
-    register: (username: string, email: string, password: string) => Promise<boolean>;
+    register: (username: string, name: string, email: string, password: string) => Promise<RegisterResponse | null>;
+    verifyEmail: (userId: number, code: string) => Promise<boolean>;
+    resendVerification: (email: string) => Promise<boolean>;
 }
 
 // API 响应类型

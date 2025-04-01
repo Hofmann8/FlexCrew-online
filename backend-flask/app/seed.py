@@ -3,6 +3,7 @@ from app.models.user import User
 from app.models.course import Course, Booking
 import traceback
 import time
+import os
 
 def seed_data():
     """初始化数据库"""
@@ -26,23 +27,31 @@ def seed_data():
             print(f"清除数据出错，可能是表不存在: {str(e)}")
             db.session.rollback()
         
-        # 创建超级管理员用户
-        print("创建用户...")
+        # 从环境变量获取管理员信息
+        admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+        admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+        admin_name = os.environ.get('ADMIN_NAME', '超级管理员')
+        
+        # 创建超级管理员用户 - 从环境变量读取账号信息
+        print("创建超级管理员用户...")
         admin = User(
-            username='admin',
-            name='超级管理员',
+            username=admin_username,
+            name=admin_name,
             email='admin@example.com',
-            role='admin'
+            role='admin',
+            email_verified=True  # 管理员默认已验证
         )
-        admin.password = 'admin123'
+        admin.password = admin_password
         
         # 创建舞种领队用户
+        print("创建舞种领队用户...")
         leader1 = User(
             username='leader1',
             name='张领队',
             email='leader1@example.com',
             role='leader',
-            dance_type='breaking'
+            dance_type='breaking',
+            email_verified=True  # 领队默认已验证
         )
         leader1.password = 'leader123'
         
@@ -51,7 +60,8 @@ def seed_data():
             name='李领队',
             email='leader2@example.com',
             role='leader',
-            dance_type='popping'
+            dance_type='popping',
+            email_verified=True  # 领队默认已验证
         )
         leader2.password = 'leader123'
         
@@ -60,7 +70,8 @@ def seed_data():
             name='王领队',
             email='leader3@example.com',
             role='leader',
-            dance_type='hiphop'
+            dance_type='hiphop',
+            email_verified=True  # 领队默认已验证
         )
         leader3.password = 'leader123'
         
@@ -69,24 +80,28 @@ def seed_data():
             name='赵领队',
             email='leader4@example.com',
             role='leader',
-            dance_type='locking'
+            dance_type='locking',
+            email_verified=True  # 领队默认已验证
         )
         leader4.password = 'leader123'
         
         # 创建普通社员用户
+        print("创建普通社员用户...")
         member1 = User(
             username='member1',
             name='社员一',
-            email='member1@example.com',
-            role='member'
+            email='member1@mail.dlut.edu.cn',
+            role='member',
+            email_verified=True  # 测试账号默认已验证
         )
         member1.password = 'member123'
         
         member2 = User(
             username='member2',
             name='社员二',
-            email='member2@example.com',
-            role='member'
+            email='member2@mail.dlut.edu.cn',
+            role='member',
+            email_verified=True  # 测试账号默认已验证
         )
         member2.password = 'member123'
         
@@ -117,7 +132,9 @@ def seed_data():
                 weekday='星期一',
                 time_slot='18:00-19:30',
                 max_capacity=15,
-                description='Breaking舞蹈基础教学，适合零基础学员。'
+                description='Breaking舞蹈基础教学，适合零基础学员。',
+                dance_type='breaking',
+                leader_id=leader1.id
             ),
             Course(
                 name='Popping进阶班',
@@ -126,7 +143,9 @@ def seed_data():
                 weekday='星期二',
                 time_slot='19:00-20:30',
                 max_capacity=12,
-                description='Popping舞蹈进阶教学，需要有基础。'
+                description='Popping舞蹈进阶教学，需要有基础。',
+                dance_type='popping',
+                leader_id=leader2.id
             ),
             Course(
                 name='Hip-Hop入门班',
@@ -135,7 +154,9 @@ def seed_data():
                 weekday='星期三',
                 time_slot='18:00-19:30',
                 max_capacity=20,
-                description='Hip-Hop舞蹈入门教学，适合零基础学员。'
+                description='Hip-Hop舞蹈入门教学，适合零基础学员。',
+                dance_type='hiphop',
+                leader_id=leader3.id
             ),
             Course(
                 name='Locking基础班',
@@ -144,7 +165,9 @@ def seed_data():
                 weekday='星期四',
                 time_slot='19:00-20:30',
                 max_capacity=15,
-                description='Locking舞蹈基础教学，适合零基础学员。'
+                description='Locking舞蹈基础教学，适合零基础学员。',
+                dance_type='locking',
+                leader_id=leader4.id
             ),
             Course(
                 name='街舞混合风格班',
@@ -153,7 +176,9 @@ def seed_data():
                 weekday='星期五',
                 time_slot='18:00-20:00',
                 max_capacity=20,
-                description='混合多种街舞风格的综合课程，适合有一定基础的学员。'
+                description='混合多种街舞风格的综合课程，适合有一定基础的学员。',
+                dance_type='breaking',
+                leader_id=leader1.id
             ),
             Course(
                 name='周末集训营',
@@ -162,7 +187,10 @@ def seed_data():
                 weekday='星期六',
                 time_slot='14:00-17:00',
                 max_capacity=30,
-                description='周末密集训练，提高舞蹈技巧和表演能力。'
+                description='周末密集训练，提高舞蹈技巧和表演能力。',
+                # 周末集训营是公共课程，不属于特定舞种
+                dance_type=None,
+                leader_id=None
             )
         ]
         

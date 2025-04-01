@@ -13,15 +13,20 @@ class Course(db.Model):
     time_slot = db.Column(db.String(20), nullable=False)  # 时间段
     max_capacity = db.Column(db.Integer, default=20)
     description = db.Column(db.Text, nullable=True)
+    # 课程归属: 为空表示公共课程，否则是某个舞种的专属课程（对应领队的dance_type）
+    dance_type = db.Column(db.String(50), nullable=True)
+    # 添加领队ID，用于关联归属的领队
+    leader_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # 关系
     bookings = db.relationship('Booking', backref='course', lazy=True, cascade='all, delete-orphan')
+    leader = db.relationship('User', backref='courses')
     
     def to_dict(self):
         """转换为字典"""
         booked_users = [booking.user_id for booking in self.bookings]
-        return {
+        data = {
             'id': self.id,
             'name': self.name,
             'instructor': self.instructor,
@@ -30,8 +35,14 @@ class Course(db.Model):
             'timeSlot': self.time_slot,
             'maxCapacity': self.max_capacity,
             'bookedBy': booked_users,
-            'description': self.description
+            'description': self.description,
+            'danceType': self.dance_type if self.dance_type else 'public'
         }
+        
+        if self.leader_id:
+            data['leaderId'] = self.leader_id
+            
+        return data
     
     def __repr__(self):
         return f'<Course {self.name}>'

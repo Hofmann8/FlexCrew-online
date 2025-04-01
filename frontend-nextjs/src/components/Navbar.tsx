@@ -134,12 +134,6 @@ export default function Navbar() {
                     >
                         课程表
                     </Link>
-                    <Link
-                        href="/leaders"
-                        className="text-white hover:text-yellow-400 transition duration-300"
-                    >
-                        舞种领队
-                    </Link>
 
                     {isAuthenticated ? (
                         <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -177,24 +171,42 @@ export default function Navbar() {
 
                                     {/* 管理员菜单项 */}
                                     {user?.role === 'admin' && (
-                                        <Link
-                                            href="/admin/users"
-                                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                            onClick={() => setIsUserMenuOpen(false)}
-                                        >
-                                            用户管理
-                                        </Link>
+                                        <>
+                                            <Link
+                                                href="/admin/users"
+                                                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                onClick={() => setIsUserMenuOpen(false)}
+                                            >
+                                                用户管理
+                                            </Link>
+                                            <Link
+                                                href="/admin/courses"
+                                                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                onClick={() => setIsUserMenuOpen(false)}
+                                            >
+                                                课程管理
+                                            </Link>
+                                        </>
                                     )}
 
                                     {/* 舞种领队菜单项 */}
                                     {user?.role === 'leader' && user?.dance_type && (
-                                        <Link
-                                            href={`/leaders/${user.dance_type}`}
-                                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                            onClick={() => setIsUserMenuOpen(false)}
-                                        >
-                                            我的舞种
-                                        </Link>
+                                        <>
+                                            <Link
+                                                href="/leaders/courses"
+                                                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                onClick={() => setIsUserMenuOpen(false)}
+                                            >
+                                                课程管理
+                                            </Link>
+                                            <Link
+                                                href={`/leaders/${user.dance_type}`}
+                                                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                onClick={() => setIsUserMenuOpen(false)}
+                                            >
+                                                我的舞种
+                                            </Link>
+                                        </>
                                     )}
 
                                     <button
@@ -305,13 +317,6 @@ export default function Navbar() {
                         >
                             课程表
                         </Link>
-                        <Link
-                            href="/leaders"
-                            className="block py-2 text-white hover:text-yellow-400"
-                            onClick={() => setIsMenuOpen(false)}
-                        >
-                            舞种领队
-                        </Link>
                         {!isAuthenticated && (
                             <>
                                 <Link
@@ -357,24 +362,42 @@ export default function Navbar() {
 
                         {/* 管理员菜单项 */}
                         {user?.role === 'admin' && (
-                            <Link
-                                href="/admin/users"
-                                className="block py-2 text-white hover:text-yellow-400"
-                                onClick={() => setIsUserMenuOpen(false)}
-                            >
-                                用户管理
-                            </Link>
+                            <>
+                                <Link
+                                    href="/admin/users"
+                                    className="block py-2 text-white hover:text-yellow-400"
+                                    onClick={() => setIsUserMenuOpen(false)}
+                                >
+                                    用户管理
+                                </Link>
+                                <Link
+                                    href="/admin/courses"
+                                    className="block py-2 text-white hover:text-yellow-400"
+                                    onClick={() => setIsUserMenuOpen(false)}
+                                >
+                                    课程管理
+                                </Link>
+                            </>
                         )}
 
                         {/* 舞种领队菜单项 */}
                         {user?.role === 'leader' && user?.dance_type && (
-                            <Link
-                                href={`/leaders/${user.dance_type}`}
-                                className="block py-2 text-white hover:text-yellow-400"
-                                onClick={() => setIsUserMenuOpen(false)}
-                            >
-                                我的舞种
-                            </Link>
+                            <>
+                                <Link
+                                    href="/leaders/courses"
+                                    className="block py-2 text-white hover:text-yellow-400"
+                                    onClick={() => setIsUserMenuOpen(false)}
+                                >
+                                    课程管理
+                                </Link>
+                                <Link
+                                    href={`/leaders/${user.dance_type}`}
+                                    className="block py-2 text-white hover:text-yellow-400"
+                                    onClick={() => setIsUserMenuOpen(false)}
+                                >
+                                    我的舞种
+                                </Link>
+                            </>
                         )}
 
                         <button

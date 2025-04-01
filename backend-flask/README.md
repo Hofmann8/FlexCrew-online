@@ -64,25 +64,143 @@ python run.py
 flask run
 ```
 
+## 用户角色系统
+
+系统设置了三种用户角色，各自拥有不同权限和创建方式：
+
+### 1. **超级管理员(admin)**
+- **创建方式**: 系统预置唯一的超级管理员账号，在`.env`文件中配置，无法通过注册创建
+- **权限**:
+  - 管理系统的所有资源，包括用户、课程、预订等
+  - 创建和管理舞种领队账号
+  - 分配课程归属（设置课程的舞种和领队）
+  - 查看系统日志
+  - 修改任何用户的信息
+  - **无法**预约课程（管理员不需要预约）
+
+### 2. **舞种领队(leader)**
+- **创建方式**: 仅超级管理员可以创建舞种领队账号
+- **权限**:
+  - 负责管理特定舞种的课程和教学
+  - 创建和管理自己舞种的课程
+  - 查看自己舞种成员和预约情况
+  - **无法**预约课程（领队通常是课程的讲师）
+  - **无法**自行注册，只能由管理员创建
+
+### 3. **普通社员(member)**
+- **创建方式**: 通过公开注册界面自行注册，必须使用大工邮箱并完成邮箱验证
+- **权限**:
+  - 预约和取消课程
+  - 修改自己的基本信息
+  - 无管理权限
+  - 必须验证大工邮箱才能正常使用系统
+
+## 用户创建流程
+
+### 普通社员注册流程
+1. 普通社员通过公开注册界面自行注册，必须使用大连理工大学邮箱(`@mail.dlut.edu.cn`)
+2. 系统向用户邮箱发送验证码
+3. 用户验证邮箱后才能正常登录和使用系统
+4. 普通社员**无法**将自己升级为领队或管理员
+
+### 舞种领队创建流程
+1. 超级管理员登录系统
+2. 通过管理界面创建舞种领队账号
+3. 指定舞种领队的用户名、密码、姓名和负责的舞种
+4. 领队账号创建后可以立即使用，无需邮箱验证
+
+### 超级管理员配置
+1. 超级管理员账号在系统初始化时通过`.env`文件配置
+2. 配置项包括：`ADMIN_USERNAME`、`ADMIN_PASSWORD`和`ADMIN_NAME`
+3. 默认值为：用户名`admin`、密码`admin123`、姓名`超级管理员`
+
 ## API接口说明
 
 ### 一、用户认证模块
 
-#### 1. 用户注册
+#### 1. 用户注册 (仅限普通社员)
 
 - **URL**: `/api/auth/register`
 - **方法**: `POST`
+- **说明**: 只允许注册普通社员账号，且必须使用大连理工大学邮箱
 - **请求参数**:
   ```json
   {
     "username": "用户名",
     "name": "真实姓名",
-    "email": "邮箱地址",
+    "email": "邮箱地址（必须是@mail.dlut.edu.cn结尾）",
     "password": "密码"
   }
   ```
+- **返回示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "userId": 8,
+      "email": "student@mail.dlut.edu.cn",
+      "emailVerified": false
+    },
+    "message": "注册成功，请查收验证码邮件"
+  }
+  ```
 
-#### 2. 用户登录
+#### 2. 验证邮箱
+
+- **URL**: `/api/auth/verify-email`
+- **方法**: `POST`
+- **请求参数**:
+  ```json
+  {
+    "userId": 8,
+    "code": "123456"
+  }
+  ```
+- **说明**: 用户填写收到的验证码完成邮箱验证。验证成功后会返回用户信息和令牌。
+- **返回示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "user": {
+        "id": 8,
+        "username": "student",
+        "name": "张三",
+        "email": "student@mail.dlut.edu.cn",
+        "role": "member",
+        "danceType": null,
+        "emailVerified": true
+      },
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    },
+    "message": "邮箱验证成功"
+  }
+  ```
+
+#### 3. 重新发送验证码
+
+- **URL**: `/api/auth/resend-verification`
+- **方法**: `POST`
+- **请求参数**:
+  ```json
+  {
+    "email": "student@mail.dlut.edu.cn"
+  }
+  ```
+- **说明**: 如果未收到验证码或验证码过期，可以请求重新发送验证码。
+- **返回示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "userId": 8,
+      "email": "student@mail.dlut.edu.cn"
+    },
+    "message": "验证码已重新发送，请查收邮件"
+  }
+  ```
+
+#### 4. 用户登录
 
 - **URL**: `/api/auth/login`
 - **方法**: `POST`
@@ -94,7 +212,7 @@ flask run
   }
   ```
 
-#### 3. 获取当前用户信息
+#### 5. 获取当前用户信息
 
 - **URL**: `/api/users/me`
 - **方法**: `GET`
@@ -189,20 +307,161 @@ flask run
    - 拥有系统最高权限
    - 可以管理所有舞种、课程和用户
    - **无法**预约课程（管理员不需要预约）
+   - 可以分配课程归属（设置课程的舞种和领队）
 
 2. **舞种领队(leader)**
    - 每位领队负责一种特定舞种(breaking、popping、hiphop、locking等)
    - 负责本舞种的课程和教学
    - **无法**预约课程（领队通常是课程的讲师）
    - 可以查看自己负责舞种的预约情况
+   - 只能管理自己舞种的课程
 
 3. **普通社员(member)**
    - 普通用户，街舞社的成员
-   - **唯一可以预约课程的角色**
    - 可以预约和取消课程
-   - 可以查看自己的预约记录
+   - 无管理权限
 
-注意：只有普通社员(member)角色才能预约和取消课程，管理员和领队无权执行这些操作。
+## 四、课程管理模块（管理员和领队接口）
+
+### 1. 获取课程列表（管理员和领队）
+
+- **URL**: `/api/admin/courses`
+- **方法**: `GET`
+- **请求头**: 
+  ```
+  Authorization: Bearer {token}
+  ```
+- **说明**: 管理员可以获取所有课程，领队只能获取自己舞种的课程和公共课程
+
+### 2. 创建课程
+
+- **URL**: `/api/admin/courses`
+- **方法**: `POST`
+- **请求头**: 
+  ```
+  Authorization: Bearer {token}
+  ```
+- **请求参数**:
+  ```json
+  {
+    "name": "课程名称",
+    "instructor": "教师名称",
+    "location": "上课地点",
+    "weekday": "星期几",
+    "timeSlot": "时间段",
+    "maxCapacity": 20,
+    "description": "课程描述",
+    "danceType": "舞种类型",  // 可选，仅管理员可设置
+    "leaderId": 1            // 可选，仅管理员可设置
+  }
+  ```
+- **说明**: 管理员可以创建任何舞种的课程，领队只能创建自己舞种的课程
+
+### 3. 更新课程信息
+
+- **URL**: `/api/admin/courses/{courseId}`
+- **方法**: `PUT`
+- **请求头**: 
+  ```
+  Authorization: Bearer {token}
+  ```
+- **请求参数**:
+  ```json
+  {
+    "name": "课程名称",
+    "instructor": "教师名称",
+    "location": "上课地点",
+    "weekday": "星期几",
+    "timeSlot": "时间段",
+    "maxCapacity": 20,
+    "description": "课程描述",
+    "danceType": "舞种类型",  // 可选，仅管理员可设置
+    "leaderId": 1            // 可选，仅管理员可设置
+  }
+  ```
+- **说明**: 管理员可以更新任何课程，领队只能更新自己舞种的课程
+
+### 4. 删除课程
+
+- **URL**: `/api/admin/courses/{courseId}`
+- **方法**: `DELETE`
+- **请求头**: 
+  ```
+  Authorization: Bearer {token}
+  ```
+- **说明**: 管理员可以删除任何课程，领队只能删除自己舞种的课程
+
+### 5. 获取课程分配情况（仅管理员）
+
+- **URL**: `/api/admin/courses/assignments`
+- **方法**: `GET`
+- **请求头**: 
+  ```
+  Authorization: Bearer {token}
+  ```
+- **返回示例**:
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "leaderId": 1,
+        "leaderName": "张领队",
+        "danceType": "breaking",
+        "courseCount": 2
+      },
+      {
+        "leaderId": 2,
+        "leaderName": "李领队",
+        "danceType": "popping",
+        "courseCount": 1
+      },
+      {
+        "danceType": "public",
+        "courseCount": 1
+      }
+    ]
+  }
+  ```
+
+### 6. 分配课程归属（仅管理员）
+
+- **URL**: `/api/admin/courses/{courseId}/assign`
+- **方法**: `PUT`
+- **请求头**: 
+  ```
+  Authorization: Bearer {token}
+  ```
+- **请求参数**:
+  ```json
+  {
+    "danceType": "舞种类型",  // 设置为 "public" 表示公共课程
+    "leaderId": 1            // 设置为 0 表示公共课程
+  }
+  ```
+- **说明**: 只需提供 danceType 或 leaderId 其中一个参数即可。如果提供 leaderId，系统会自动设置对应的舞种类型
+
+## 课程归属说明
+
+系统中的课程可能有以下几种归属方式：
+
+1. **特定舞种课程** - 属于某个舞种，由相应的舞种领队管理
+   - 设置了 dance_type 和 leader_id
+   - 只有对应的领队和管理员可以管理
+
+2. **公共课程** - 不属于特定舞种，所有人都可以预约
+   - dance_type 和 leader_id 均为 null
+   - 只有管理员可以管理
+
+超级管理员可以：
+- 创建任何舞种的课程或公共课程
+- 修改任何课程的信息和归属
+- 删除任何课程
+
+舞种领队可以：
+- 创建和管理自己舞种的课程
+- 无法修改课程归属
+- 无法管理其他舞种的课程或公共课程
 
 ## 测试账号
 
@@ -229,6 +488,38 @@ flask run
 2. 开发环境默认启用调试模式
 3. 已配置CORS支持跨域请求
 4. 首次运行会自动创建数据库并初始化测试数据
+
+## 邮件服务配置
+
+系统使用 Gmail SMTP 服务发送验证邮件，需要进行以下配置：
+
+1. **环境变量配置**
+
+   在 `.env` 文件中已配置以下参数：
+   ```
+   MAIL_SERVER=smtp.gmail.com
+   MAIL_PORT=587
+   MAIL_USE_SSL=False
+   MAIL_USE_TLS=True
+   MAIL_USERNAME=dut.flexcrew@gmail.com
+   MAIL_PASSWORD=your-app-password-here
+   ```
+
+2. **Gmail 应用专用密码获取**
+
+   由于 Gmail 不支持直接使用账号密码进行 SMTP 认证，需要生成"应用专用密码"：
+   - 登录 Gmail 账号
+   - 访问 [Google 账号安全设置](https://myaccount.google.com/security)
+   - 开启两步验证（如果尚未开启）
+   - 在"应用专用密码"部分创建新密码
+   - 将生成的密码填入 `.env` 文件的 `MAIL_PASSWORD` 字段
+
+3. **测试邮件功能**
+
+   配置完成后，可以使用以下命令测试邮件功能：
+   ```
+   python -m app.utils.test_email your-test-email@mail.dlut.edu.cn
+   ```
 
 ## 测试工具
 
@@ -276,3 +567,241 @@ flask run
 - **权限**: 仅超级管理员可访问
 - **参数**: role可以是'admin'、'leader'或'member'
 - **说明**: 按角色筛选用户。 
+
+## 五、用户管理模块
+
+### 1. 获取所有用户
+
+- **URL**: `/api/users`
+- **方法**: `GET`
+- **权限**: 仅管理员
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **功能描述**: 获取系统中所有用户的列表
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": 1,
+        "username": "admin",
+        "name": "超级管理员",
+        "email": "admin@example.com",
+        "role": "admin",
+        "danceType": null
+      },
+      {
+        "id": 2,
+        "username": "leader1",
+        "name": "张领队",
+        "email": "leader1@example.com",
+        "role": "leader",
+        "danceType": "breaking"
+      }
+    ]
+  }
+  ```
+
+### 2. 按角色获取用户
+
+- **URL**: `/api/users/role/{role}`
+- **方法**: `GET`
+- **权限**: 仅管理员
+- **参数**: `role` - 用户角色 (`admin`, `leader`, `member`)
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **功能描述**: 获取指定角色的所有用户列表
+- **返回格式**: 同上
+
+### 3. 更新用户资料
+
+- **URL**: `/api/users/profile`
+- **方法**: `PATCH`
+- **权限**: 用户可以更新自己的资料，管理员可以更新任何用户
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **请求参数**:
+  ```json
+  {
+    "userId": 3,  // 可选，仅管理员可指定其他用户ID
+    "name": "新名称",
+    "email": "新邮箱"
+  }
+  ```
+- **功能描述**: 更新用户的基本资料信息
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": 3,
+      "username": "member1",
+      "name": "新名称",
+      "email": "新邮箱",
+      "role": "member",
+      "danceType": null
+    },
+    "message": "用户资料更新成功"
+  }
+  ```
+
+### 4. 更新用户密码
+
+- **URL**: `/api/users/password`
+- **方法**: `PATCH`
+- **权限**: 用户只能更改自己的密码，管理员可以更改任何用户密码
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **请求参数**:
+  ```json
+  {
+    "userId": 3,  // 可选，仅管理员可指定其他用户ID
+    "currentPassword": "当前密码",  // 非管理员用户修改自己密码时必填
+    "newPassword": "新密码"
+  }
+  ```
+- **功能描述**: 更新用户密码，普通用户需要提供当前密码，管理员可以直接重置
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "message": "密码更新成功"
+  }
+  ```
+
+### 5. 创建新用户 (仅管理员)
+
+- **URL**: `/api/users`
+- **方法**: `POST`
+- **权限**: 仅管理员
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **请求参数**:
+  ```json
+  {
+    "username": "新用户名",
+    "name": "显示名称",
+    "email": "用户邮箱",
+    "password": "初始密码",
+    "role": "leader",
+    "dance_type": "舞种类型" // 必填，指定领队负责的舞种
+  }
+  ```
+- **功能描述**: 管理员创建舞种领队用户。普通社员只能通过公开注册接口自行注册，不能由管理员创建。
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": 8,
+      "username": "新用户名",
+      "name": "显示名称",
+      "email": "用户邮箱",
+      "role": "leader",
+      "danceType": "breaking"
+    },
+    "message": "领队用户创建成功"
+  }
+  ```
+
+### 6. 更新用户角色和舞种 (仅管理员)
+
+- **URL**: `/api/users/{userId}/role`
+- **方法**: `PUT`
+- **权限**: 仅管理员
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **请求参数**:
+  ```json
+  {
+    "role": "leader",
+    "dance_type": "breaking"  // 角色为leader时必填
+  }
+  ```
+- **功能描述**: 管理员可以更改用户的角色和舞种属性
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": 3,
+      "username": "member1",
+      "name": "社员一",
+      "email": "member1@example.com",
+      "role": "leader",
+      "danceType": "breaking"
+    },
+    "message": "用户角色更新成功"
+  }
+  ```
+
+### 7. 更新用户舞种 (管理员和领队)
+
+- **URL**: `/api/users/{userId}/dance-type`
+- **方法**: `PUT`
+- **权限**: 管理员可更新任何用户，领队只能更新自己舞种的成员
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **请求参数**:
+  ```json
+  {
+    "danceType": "breaking"  // 设置为null或空字符串表示清除舞种
+  }
+  ```
+- **功能描述**: 更新用户的舞种归属
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": 3,
+      "username": "member1",
+      "name": "社员一",
+      "email": "member1@example.com",
+      "role": "member",
+      "danceType": "breaking"
+    },
+    "message": "用户舞种更新成功"
+  }
+  ```
+
+### 8. 删除用户 (仅管理员)
+
+- **URL**: `/api/users/{userId}`
+- **方法**: `DELETE`
+- **权限**: 仅管理员
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **功能描述**: 删除指定用户，同时会处理该用户关联的所有数据
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "message": "用户删除成功"
+  }
+  ```
+
+### 9. 获取舞种的成员列表 (管理员和舞种领队)
+
+- **URL**: `/api/users/dance-type/{danceType}`
+- **方法**: `GET`
+- **权限**: 管理员可查看任何舞种，领队只能查看自己舞种
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **功能描述**: 获取特定舞种的所有成员（member角色）列表
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": 5,
+        "username": "member3",
+        "name": "张三",
+        "email": "member3@example.com",
+        "role": "member",
+        "danceType": "breaking"
+      },
+      {
+        "id": 6,
+        "username": "member4",
+        "name": "李四",
+        "email": "member4@example.com",
+        "role": "member",
+        "danceType": "breaking"
+      }
+    ]
+  }
+  ``` 

@@ -3,9 +3,19 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { userApi } from '@/services/api';
-import { User } from '@/types';
+import api from '@/services/api';
+import { User, DANCE_TYPES } from '@/types';
 import { toast } from 'react-hot-toast';
+
+// 用户表单数据类型
+interface UserFormData {
+    username: string;
+    name: string;
+    email: string;
+    password?: string;
+    role: 'admin' | 'leader' | 'member';
+    dance_type?: string;
+}
 
 export default function AdminUsersPage() {
     const router = useRouter();
@@ -14,6 +24,22 @@ export default function AdminUsersPage() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'all' | 'admin' | 'leader' | 'member'>('all');
     const [error, setError] = useState<string | null>(null);
+
+    // 模态框状态
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+    // 表单数据
+    const [formData, setFormData] = useState<UserFormData>({
+        username: '',
+        name: '',
+        email: '',
+        password: '',
+        role: 'member',
+        dance_type: ''
+    });
 
     useEffect(() => {
         // 检查是否是管理员
@@ -31,31 +57,165 @@ export default function AdminUsersPage() {
         fetchUsers(activeTab);
     }, [isAuthenticated, user, router, activeTab]);
 
+    // 获取用户列表
     const fetchUsers = async (tab: 'all' | 'admin' | 'leader' | 'member') => {
         try {
             setLoading(true);
             setError(null);
-            let data;
 
+            console.log(`正在获取${tab}用户数据...`);
+
+            let response;
             if (tab === 'all') {
-                data = await userApi.getAllUsers();
+                response = await api.users.getAllUsers();
             } else {
-                data = await userApi.getUsersByRole(tab);
+                response = await api.users.getUsersByRole(tab);
             }
 
-            if (Array.isArray(data)) {
-                setUsers(data);
+            console.log('API响应数据:', response);
+
+            // 处理不同格式的API响应
+            if (response && response.success && Array.isArray(response.data)) {
+                // 标准格式：{ success: true, data: [...] }
+                console.log('成功获取用户数据，数量:', response.data.length);
+                setUsers(response.data);
+            } else if (response && Array.isArray(response)) {
+                // 直接返回数组
+                console.log('成功获取用户数据，数量:', response.length);
+                setUsers(response);
+            } else if (response && typeof response === 'object' && 'data' in response && Array.isArray(response.data)) {
+                // 简单对象格式：{ data: [...] }
+                console.log('成功获取用户数据，数量:', response.data.length);
+                setUsers(response.data);
             } else {
-                setError('加载用户数据失败');
+                console.error('无法解析API响应格式:', response);
+                setError('加载用户数据失败：无法解析响应格式');
                 toast.error('加载用户数据失败', { position: 'top-center' });
             }
         } catch (err) {
-            // console.error('获取用户数据出错:', err);
-            setError('获取用户数据时发生错误');
+            console.error('获取用户数据出错:', err);
+            setError(`获取用户数据时发生错误: ${err instanceof Error ? err.message : '未知错误'}`);
             toast.error('获取用户数据失败', { position: 'top-center' });
         } finally {
             setLoading(false);
         }
+    };
+
+    // 创建用户
+    const handleCreateUser = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        try {
+            console.log('创建用户数据:', formData);
+            const response = await api.users.createUser(formData);
+
+            if (response && response.success) {
+                toast.success('用户创建成功', { position: 'top-center' });
+                setIsCreateModalOpen(false);
+                // 重置表单
+                setFormData({
+                    username: '',
+                    name: '',
+                    email: '',
+                    password: '',
+                    role: 'member',
+                    dance_type: ''
+                });
+                // 刷新用户列表
+                fetchUsers(activeTab);
+            } else {
+                toast.error(response.message || '创建用户失败', { position: 'top-center' });
+            }
+        } catch (err) {
+            console.error('创建用户出错:', err);
+            toast.error(`创建用户失败: ${err instanceof Error ? err.message : '未知错误'}`, { position: 'top-center' });
+        }
+    };
+
+    // 更新用户角色
+    const handleUpdateUserRole = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!currentUserId) return;
+
+        try {
+            const { role, dance_type } = formData;
+            console.log(`更新用户 ${currentUserId} 角色:`, { role, dance_type });
+
+            // 确保同时提供dance_type和danceType，以适应不同的API格式
+            const apiData = {
+                role,
+                dance_type,
+                danceType: dance_type // 同时提供两种格式
+            };
+
+            const response = await api.users.updateUserRole(currentUserId, apiData);
+
+            if (response && response.success) {
+                toast.success('用户角色更新成功', { position: 'top-center' });
+                setIsEditModalOpen(false);
+                setCurrentUserId(null);
+                // 刷新用户列表
+                fetchUsers(activeTab);
+            } else {
+                toast.error(response.message || '更新用户角色失败', { position: 'top-center' });
+            }
+        } catch (err) {
+            console.error('更新用户角色出错:', err);
+            toast.error(`更新用户角色失败: ${err instanceof Error ? err.message : '未知错误'}`, { position: 'top-center' });
+        }
+    };
+
+    // 删除用户
+    const handleDeleteUser = async () => {
+        if (!currentUserId) return;
+
+        try {
+            console.log(`删除用户 ${currentUserId}`);
+            const response = await api.users.deleteUser(currentUserId);
+
+            if (response && response.success) {
+                toast.success('用户删除成功', { position: 'top-center' });
+                setIsDeleteModalOpen(false);
+                setCurrentUserId(null);
+                // 刷新用户列表
+                fetchUsers(activeTab);
+            } else {
+                toast.error(response.message || '删除用户失败', { position: 'top-center' });
+            }
+        } catch (err) {
+            console.error('删除用户出错:', err);
+            toast.error(`删除用户失败: ${err instanceof Error ? err.message : '未知错误'}`, { position: 'top-center' });
+        }
+    };
+
+    // 表单输入处理
+    const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    // 打开编辑模态框
+    const openEditModal = (userData: User) => {
+        setCurrentUserId(userData.id);
+
+        // 处理不同API格式返回的舞种字段
+        const dance_type = userData.dance_type || userData.danceType || '';
+
+        setFormData({
+            username: userData.username,
+            name: userData.name,
+            email: userData.email,
+            role: userData.role as 'admin' | 'leader' | 'member',
+            dance_type
+        });
+        setIsEditModalOpen(true);
+    };
+
+    // 打开删除确认模态框
+    const openDeleteModal = (userId: string) => {
+        setCurrentUserId(userId);
+        setIsDeleteModalOpen(true);
     };
 
     // 渲染角色标签
@@ -102,31 +262,41 @@ export default function AdminUsersPage() {
 
             {/* 用户管理内容 */}
             <div className="container mx-auto px-4 py-8">
-                {/* 角色筛选标签页 */}
-                <div className="flex border-b mb-6">
+                <div className="flex justify-between items-center mb-6">
+                    {/* 角色筛选标签页 */}
+                    <div className="flex border-b">
+                        <button
+                            className={`px-4 py-2 font-medium ${activeTab === 'all' ? 'border-b-2 border-yellow-500 text-yellow-500' : 'text-gray-500'}`}
+                            onClick={() => setActiveTab('all')}
+                        >
+                            所有用户
+                        </button>
+                        <button
+                            className={`px-4 py-2 font-medium ${activeTab === 'admin' ? 'border-b-2 border-yellow-500 text-yellow-500' : 'text-gray-500'}`}
+                            onClick={() => setActiveTab('admin')}
+                        >
+                            超级管理员
+                        </button>
+                        <button
+                            className={`px-4 py-2 font-medium ${activeTab === 'leader' ? 'border-b-2 border-yellow-500 text-yellow-500' : 'text-gray-500'}`}
+                            onClick={() => setActiveTab('leader')}
+                        >
+                            舞种领队
+                        </button>
+                        <button
+                            className={`px-4 py-2 font-medium ${activeTab === 'member' ? 'border-b-2 border-yellow-500 text-yellow-500' : 'text-gray-500'}`}
+                            onClick={() => setActiveTab('member')}
+                        >
+                            普通社员
+                        </button>
+                    </div>
+
+                    {/* 创建用户按钮 */}
                     <button
-                        className={`px-4 py-2 font-medium ${activeTab === 'all' ? 'border-b-2 border-yellow-500 text-yellow-500' : 'text-gray-500'}`}
-                        onClick={() => setActiveTab('all')}
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
                     >
-                        所有用户
-                    </button>
-                    <button
-                        className={`px-4 py-2 font-medium ${activeTab === 'admin' ? 'border-b-2 border-yellow-500 text-yellow-500' : 'text-gray-500'}`}
-                        onClick={() => setActiveTab('admin')}
-                    >
-                        超级管理员
-                    </button>
-                    <button
-                        className={`px-4 py-2 font-medium ${activeTab === 'leader' ? 'border-b-2 border-yellow-500 text-yellow-500' : 'text-gray-500'}`}
-                        onClick={() => setActiveTab('leader')}
-                    >
-                        舞种领队
-                    </button>
-                    <button
-                        className={`px-4 py-2 font-medium ${activeTab === 'member' ? 'border-b-2 border-yellow-500 text-yellow-500' : 'text-gray-500'}`}
-                        onClick={() => setActiveTab('member')}
-                    >
-                        普通社员
+                        添加用户
                     </button>
                 </div>
 
@@ -154,12 +324,13 @@ export default function AdminUsersPage() {
                                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">邮箱</th>
                                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">角色</th>
                                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">舞种</th>
+                                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">操作</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
                                 {users.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                                        <td colSpan={6} className="px-4 py-4 text-center text-gray-500">
                                             暂无用户数据
                                         </td>
                                     </tr>
@@ -173,7 +344,21 @@ export default function AdminUsersPage() {
                                                 {renderRoleTag(user.role)}
                                             </td>
                                             <td className="px-4 py-3 text-sm">
-                                                {user.dance_type || '-'}
+                                                {user.dance_type || user.danceType || '-'}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-right">
+                                                <button
+                                                    className="text-indigo-600 hover:text-indigo-900 mr-2"
+                                                    onClick={() => openEditModal(user)}
+                                                >
+                                                    编辑
+                                                </button>
+                                                <button
+                                                    className="text-red-600 hover:text-red-900"
+                                                    onClick={() => openDeleteModal(user.id)}
+                                                >
+                                                    删除
+                                                </button>
                                             </td>
                                         </tr>
                                     ))
@@ -183,6 +368,192 @@ export default function AdminUsersPage() {
                     </div>
                 )}
             </div>
+
+            {/* 创建用户模态框 */}
+            {isCreateModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <h3 className="text-lg font-medium mb-4">创建新用户</h3>
+                        <form onSubmit={handleCreateUser}>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+                                    <input
+                                        type="text"
+                                        name="username"
+                                        value={formData.username}
+                                        onChange={handleFormChange}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">姓名</label>
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        value={formData.name}
+                                        onChange={handleFormChange}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">邮箱</label>
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        value={formData.email}
+                                        onChange={handleFormChange}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">密码</label>
+                                    <input
+                                        type="password"
+                                        name="password"
+                                        value={formData.password}
+                                        onChange={handleFormChange}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">角色</label>
+                                    <select
+                                        name="role"
+                                        value={formData.role}
+                                        onChange={handleFormChange}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                    >
+                                        <option value="member">普通社员</option>
+                                        <option value="leader">舞种领队</option>
+                                        <option value="admin">超级管理员</option>
+                                    </select>
+                                </div>
+                                {formData.role === 'leader' || formData.role === 'member' ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">舞种</label>
+                                        <select
+                                            name="dance_type"
+                                            value={formData.dance_type}
+                                            onChange={handleFormChange}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                        >
+                                            <option value="">无</option>
+                                            {DANCE_TYPES.filter(type => type !== 'public').map(type => (
+                                                <option key={type} value={type}>{type}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ) : null}
+                            </div>
+                            <div className="mt-6 flex justify-end space-x-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsCreateModalOpen(false)}
+                                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+                                >
+                                    取消
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                                >
+                                    创建
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* 编辑用户模态框 */}
+            {isEditModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <h3 className="text-lg font-medium mb-4">编辑用户角色</h3>
+                        <form onSubmit={handleUpdateUserRole}>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">角色</label>
+                                    <select
+                                        name="role"
+                                        value={formData.role}
+                                        onChange={handleFormChange}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                    >
+                                        <option value="member">普通社员</option>
+                                        <option value="leader">舞种领队</option>
+                                        <option value="admin">超级管理员</option>
+                                    </select>
+                                </div>
+                                {formData.role === 'leader' || formData.role === 'member' ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">舞种</label>
+                                        <select
+                                            name="dance_type"
+                                            value={formData.dance_type}
+                                            onChange={handleFormChange}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                        >
+                                            <option value="">无</option>
+                                            {DANCE_TYPES.filter(type => type !== 'public').map(type => (
+                                                <option key={type} value={type}>{type}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ) : null}
+                            </div>
+                            <div className="mt-6 flex justify-end space-x-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsEditModalOpen(false)}
+                                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+                                >
+                                    取消
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                                >
+                                    更新角色
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* 删除用户确认模态框 */}
+            {isDeleteModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <h3 className="text-lg font-medium mb-4">确认删除</h3>
+                        <p className="text-gray-600 mb-6">您确定要删除此用户吗？此操作不可撤销，用户的所有数据将被永久删除。</p>
+                        <div className="flex justify-end space-x-3">
+                            <button
+                                type="button"
+                                onClick={() => setIsDeleteModalOpen(false)}
+                                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+                            >
+                                取消
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDeleteUser}
+                                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                            >
+                                确认删除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </main>
     );
 } 

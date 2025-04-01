@@ -1,19 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { bookingApi, courseApi } from '@/services/api';
 import { Course } from '@/types';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
-
-// 在课程表中显示的时间槽
-const displayTimeSlots = [
-    "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00-14:00",
-    "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00",
-    "18:00-19:00", "19:00-20:00", "20:00-21:00", "21:00-22:00"
-];
+import { FiRefreshCw, FiAlertCircle, FiCheck, FiX, FiClock, FiMapPin, FiUser, FiCalendar } from 'react-icons/fi';
 
 // 周几名称
 const weekdays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
@@ -42,15 +36,71 @@ interface BookingStatusMap {
     [courseId: string]: string; // 'not_booked', 'confirmed', 'canceled'
 }
 
-// 将API中的时间槽映射为显示格式
-const mapTimeSlotToDisplay = (timeSlot: string): string => {
-    // 直接返回原始时间槽，如果需要格式化可以在这里添加逻辑
-    return timeSlot;
+// 将时间字符串转换为分钟数（从00:00开始）
+const timeToMinutes = (time: string): number => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
 };
 
-// 将时间槽转换为易读格式
-const timeSlotToReadable = (timeSlot: string): string => {
-    return timeSlot;
+// 解析时间段字符串（如 "09:00-10:30"）为开始和结束时间的分钟数
+const parseTimeSlot = (timeSlot: string): { start: number; end: number } => {
+    const [start, end] = timeSlot.split('-');
+    return {
+        start: timeToMinutes(start),
+        end: timeToMinutes(end)
+    };
+};
+
+// 分钟数转回时间字符串
+const minutesToTime = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+};
+
+// 添加自定义CSS类用于控制滚动条和溢出
+const scheduleTableStyles = {
+    tableContainer: 'overflow-hidden rounded-lg shadow-md border border-gray-100 bg-white',
+    scrollContainer: 'scrollbar-hide overflow-x-auto',
+    weekdayColumn: 'min-w-[150px] flex-shrink-0 border-r border-gray-100 last:border-r-0',
+    fixedHeight: '',
+    headerSticky: `
+        sticky top-0 z-10
+        bg-yellow-50 
+        text-yellow-800
+        font-medium
+        border-b border-yellow-100
+        h-12 flex items-center justify-center
+    `,
+    timeLabels: `
+        text-xs text-right pr-2 text-gray-500
+        border-r border-gray-100
+    `,
+    timeLabel: `
+        absolute right-2 transform -translate-y-1/2
+    `,
+    hourLabel: `
+        font-medium
+    `,
+    halfHourLabel: `
+        text-gray-400 text-[10px]
+    `,
+    timeGridLine: `
+        absolute left-0 right-0 border-t
+    `,
+    hourGridLine: `
+        border-gray-200
+    `,
+    halfHourGridLine: `
+        border-gray-100 border-dashed
+    `,
+    courseCard: `
+        absolute left-1 right-1 
+        rounded-md shadow-sm border
+        p-2 overflow-hidden
+        transition-all duration-200
+        hover:shadow-md
+    `
 };
 
 const ScheduleTable = () => {
@@ -62,6 +112,44 @@ const ScheduleTable = () => {
     const [loadingCourseId, setLoadingCourseId] = useState<string>('');
     const [bookingStatus, setBookingStatus] = useState<BookingStatusMap>({});
     const [refreshing, setRefreshing] = useState(false);
+
+    // 时间范围计算 - 找出所有课程中最早的开始时间和最晚的结束时间
+    const { timeRange, minTime, maxTime } = useMemo(() => {
+        if (courses.length === 0) {
+            return {
+                timeRange: [],
+                minTime: timeToMinutes('09:00'),
+                maxTime: timeToMinutes('22:00')
+            };
+        }
+
+        let min = timeToMinutes('23:59');
+        let max = timeToMinutes('00:00');
+
+        courses.forEach(course => {
+            if (!course.timeSlot) return;
+
+            try {
+                const { start, end } = parseTimeSlot(course.timeSlot);
+                min = Math.min(min, start);
+                max = Math.max(max, end);
+            } catch (e) {
+                console.warn('无法解析时间段:', course.timeSlot);
+            }
+        });
+
+        // 时间范围向下取整到半小时，向上取整到半小时
+        min = Math.floor(min / 30) * 30;
+        max = Math.ceil(max / 30) * 30;
+
+        // 生成时间刻度（每30分钟一个）
+        const timeLabels = [];
+        for (let time = min; time <= max; time += 30) {
+            timeLabels.push(minutesToTime(time));
+        }
+
+        return { timeRange: timeLabels, minTime: min, maxTime: max };
+    }, [courses]);
 
     useEffect(() => {
         loadCourses();
@@ -102,9 +190,6 @@ const ScheduleTable = () => {
 
             const coursesResponse = await courseApi.getAllCourses();
 
-            // 输出后端返回的原始数据，用于调试
-            console.log('后端API返回的全部课程数据:', coursesResponse);
-
             // 处理嵌套的数据结构
             let coursesData;
             if (coursesResponse.data && Array.isArray(coursesResponse.data)) {
@@ -115,72 +200,30 @@ const ScheduleTable = () => {
                 throw new Error('获取课程数据失败：返回数据格式不正确');
             }
 
-            // 输出后端返回的课程预约人数信息
-            console.log('后端返回的课程预约人数信息:',
-                coursesData.map(course => ({
-                    id: course.id,
-                    name: course.name,
-                    bookedCount: course.bookedCount,
-                    bookedBy: course.bookedBy,
-                    maxCapacity: course.maxCapacity
-                }))
-            );
-
             // 处理并标准化课程数据，确保格式一致
-            // 注意：这里会将一个跨多个时间段的课程拆分成多个记录
-            let normalizedCourses: Course[] = [];
+            const normalizedCourses: Course[] = coursesData.map((course: any) => {
+                if (!course) return null;
 
-            coursesData.forEach((course: any) => {
-                if (!course) {
-                    return; // 跳过无效数据
-                }
-
-                try {
-                    const baseNormalizedCourse = {
-                        ...course,
-                        // 确保ID是字符串
-                        id: String(course.id || ''),
-                        // 标准化weekday格式
-                        weekday: weekdayMap[course.weekday] || course.weekday || '未知',
-                        // 确保bookedBy是数组
-                        bookedBy: Array.isArray(course.bookedBy) ? course.bookedBy : [],
-                        // 如果没有instructor字段但有teacher字段，使用teacher
-                        instructor: course.instructor || course.teacher || '未知教练',
-                        // 保存原始timeSlot
-                        originalTimeSlot: course.timeSlot || course.time || '未知时间',
-                        // 确保maxCapacity有值
-                        maxCapacity: course.maxCapacity || 20,
-                        // 确保bookedCount有值，优先使用API返回的值，即使是0也要使用，否则再考虑使用bookedBy数组长度
-                        bookedCount: course.bookedCount !== undefined ? course.bookedCount :
-                            (Array.isArray(course.bookedBy) ? course.bookedBy.length : 0)
-                    };
-
-                    // 获取这个课程覆盖的所有显示时间段
-                    const matchedTimeSlots = displayTimeSlots.filter(slot => {
-                        const courseTimeSlot = baseNormalizedCourse.originalTimeSlot;
-                        return courseTimeSlot && typeof courseTimeSlot === 'string' &&
-                            courseTimeSlot.includes(slot.split('-')[0]);
-                    });
-
-                    if (matchedTimeSlots.length > 0) {
-                        // 为每个匹配的时间段创建一个课程记录
-                        matchedTimeSlots.forEach(timeSlot => {
-                            normalizedCourses.push({
-                                ...baseNormalizedCourse,
-                                timeSlot: timeSlot
-                            });
-                        });
-                    } else {
-                        // 如果没有匹配的时间段，至少保留一个记录，使用原始时间
-                        normalizedCourses.push({
-                            ...baseNormalizedCourse,
-                            timeSlot: baseNormalizedCourse.originalTimeSlot
-                        });
-                    }
-                } catch (courseError) {
-                    // 处理课程数据错误，但不中断处理流程
-                }
-            });
+                return {
+                    ...course,
+                    // 确保ID是字符串
+                    id: String(course.id || ''),
+                    // 标准化weekday格式
+                    weekday: weekdayMap[course.weekday] || course.weekday || '未知',
+                    // 确保bookedBy是数组
+                    bookedBy: Array.isArray(course.bookedBy) ? course.bookedBy : [],
+                    // 如果没有instructor字段但有teacher字段，使用teacher
+                    instructor: course.instructor || course.teacher || '未知教练',
+                    // 保存原始timeSlot
+                    timeSlot: course.timeSlot || course.time || '未知时间',
+                    // 确保maxCapacity有值
+                    maxCapacity: course.maxCapacity || 20,
+                    // 确保bookedCount有值
+                    bookedCount: course.bookedCount !== undefined ?
+                        course.bookedCount :
+                        (Array.isArray(course.bookedBy) ? course.bookedBy.length : 0)
+                };
+            }).filter(Boolean);
 
             // 使用过渡动画更新状态
             setTimeout(() => {
@@ -248,570 +291,558 @@ const ScheduleTable = () => {
             // 获取最新的课程数据
             await loadCourses();
 
-            // 如果用户已登录，同时更新所有课程的预约状态
+            // 如果用户已登录，同时更新预约状态
             if (isAuthenticated) {
                 await loadAllBookingStatuses();
             }
 
             // 刷新成功的提示
-            toast.success('课程数据已更新', {
+            toast.success('数据同步成功！', {
+                position: 'top-center',
+                duration: 1500
+            });
+        } catch (error) {
+            // 刷新失败的提示
+            toast.error('数据同步失败，请重试。', {
                 position: 'top-center',
                 duration: 2000
             });
-        } catch (error) {
-            console.error('刷新课程数据失败', error);
-            toast.error('刷新失败，请稍后再试', {
-                position: 'top-center',
-                duration: 3000
-            });
         } finally {
-            // 完成后，关闭刷新状态
             setRefreshing(false);
         }
     };
 
-    // 刷新单个课程数据
+    // 刷新单个课程的预约状态
     const refreshSingleCourse = async (courseId: string) => {
-        try {
-            // 获取最新的课程信息
-            const response = await courseApi.getCourseById(courseId);
-
-            // 输出后端返回的单个课程数据
-            console.log(`获取课程ID ${courseId} 的详细信息:`, response);
-
-            // 处理API响应，确保我们能正确获取课程数据
-            let refreshedCourse;
-            if (response && response.data) {
-                refreshedCourse = response.data;
-            } else if (response && !response.data) {
-                // 如果API直接返回课程数据
-                refreshedCourse = response;
-            }
-
-            // 输出关键的预约信息
-            if (refreshedCourse) {
-                console.log(`课程 "${refreshedCourse.name}" (ID: ${courseId}) 的预约信息:`, {
-                    bookedCount: refreshedCourse.bookedCount,
-                    bookedByLength: Array.isArray(refreshedCourse.bookedBy) ? refreshedCourse.bookedBy.length : '未知',
-                    bookedBy: refreshedCourse.bookedBy,
-                    maxCapacity: refreshedCourse.maxCapacity
-                });
-            }
-
-            // 只更新单个课程的关键属性，特别是预约人数
-            if (refreshedCourse) {
-                setCourses(prevCourses => {
-                    return prevCourses.map(course => {
-                        if (course.id === courseId) {
-                            // 保留课程的所有原有属性，只更新预约人数相关的数据
-                            return {
-                                ...course,
-                                // 优先使用API返回的bookedCount或bookedBy数组长度
-                                bookedCount: refreshedCourse.bookedCount !== undefined
-                                    ? refreshedCourse.bookedCount
-                                    : (Array.isArray(refreshedCourse.bookedBy)
-                                        ? refreshedCourse.bookedBy.length
-                                        : course.bookedCount),
-                                // 更新其他无关显示但数据需要保持最新的字段
-                                bookedBy: refreshedCourse.bookedBy || course.bookedBy,
-                                maxCapacity: refreshedCourse.maxCapacity || course.maxCapacity
-                            };
-                        }
-                        return course;
-                    });
-                });
-            }
-
-            // 同时更新该课程的预约状态
-            if (isAuthenticated) {
-                const status = await bookingApi.getCourseBookingStatus(courseId);
-                if (status) {
-                    setBookingStatus(prev => ({
-                        ...prev,
-                        [courseId]: status.data?.status || status.status || 'not_booked'
-                    }));
-                }
-            }
-        } catch (error) {
-            // 捕获错误，但不影响现有显示
-            console.error(`刷新课程数据失败，课程ID: ${courseId}`, error);
-        }
-    };
-
-    // 判断用户是否可以预约课程
-    const canUserBookCourse = (): boolean => {
-        // 未登录用户不能预约，需要先登录
-        if (!isAuthenticated || !user) return false;
-
-        // 只有普通社员(member)才能预约课程
-        return user.role === 'member';
-    };
-
-    // 处理课程预订
-    const handleBooking = async (courseId: string, courseName: string) => {
-        if (!isAuthenticated) {
-            // 保存当前URL以便登录后返回
-            localStorage.setItem('redirect_after_login', window.location.pathname);
-            toast.success('请先登录以预约课程', {
-                position: 'top-center',
-                duration: 3000
-            });
-            router.push('/auth/login');
-            return;
-        }
-
-        // 检查用户角色权限
-        if (!canUserBookCourse()) {
-            toast.error('只有普通社员才能预约课程', {
-                position: 'top-center',
-                duration: 3000
-            });
-            return;
-        }
+        if (!isAuthenticated || !courseId) return;
 
         try {
-            setLoadingCourseId(courseId);
+            // 修正API调用，使用getCourseBookingStatus替代getBookingStatus
+            const status = await bookingApi.getCourseBookingStatus(courseId);
 
-            // 乐观更新UI状态
-            // 1. 临时更新预约状态
+            // 更新状态
             setBookingStatus(prev => ({
                 ...prev,
-                [courseId]: 'confirmed'
+                [courseId]: status || 'not_booked'
             }));
+        } catch (error) {
+            console.error('刷新课程预约状态失败:', error);
+        }
+    };
 
-            // 2. 临时更新课程预约人数
-            setCourses(prevCourses => {
-                // 获取当前课程的预约人数
-                const currentCourse = prevCourses.find(course => course.id === courseId);
-                // 确保获取的是精确的预约人数，可能是0也可能是其他值
-                const oldCount = currentCourse && currentCourse.bookedCount !== undefined ?
-                    currentCourse.bookedCount : 0;
+    // 检查用户是否可以预定课程
+    const canUserBookCourse = (): boolean => {
+        // 用户必须已登录且不是管理员（管理员不能预约课程）
+        return isAuthenticated && user?.role !== 'admin';
+    };
 
-                console.log(`预约前课程 "${courseName}" (ID: ${courseId}) 的预约人数: ${oldCount}`);
-
-                // 更新预约人数，确保+1是基于准确的初始值
-                const newCourses = prevCourses.map(course =>
-                    course.id === courseId
-                        ? {
-                            ...course,
-                            bookedCount: (course.bookedCount !== undefined ? course.bookedCount : 0) + 1
-                        }
-                        : course
-                );
-
-                // 获取更新后的预约人数
-                const updatedCourse = newCourses.find(course => course.id === courseId);
-                const newCount = updatedCourse && updatedCourse.bookedCount !== undefined ?
-                    updatedCourse.bookedCount : 0;
-
-                console.log(`预约后课程 "${courseName}" (ID: ${courseId}) 的预约人数: ${newCount}`);
-
-                return newCourses;
+    // 处理课程预约
+    const handleBooking = async (courseId: string, courseName: string) => {
+        // 如果用户未登录，提示登录
+        if (!isAuthenticated) {
+            toast.error('请先登录才能预约课程', {
+                position: 'top-center',
+                duration: 3000
             });
+            return;
+        }
 
-            // 发送实际请求
-            const response = await bookingApi.bookCourse(courseId);
+        // 如果正在加载，不执行操作
+        if (loadingCourseId === courseId) return;
 
-            if (response && (response.success || response.data)) {
+        // 设置当前正在操作的课程ID
+        setLoadingCourseId(courseId);
+
+        try {
+            // 调用预约API
+            const bookingResponse = await bookingApi.bookCourse(courseId);
+
+            // 检查API响应是否成功
+            if (bookingResponse && bookingResponse.success) {
+                // 预约成功
                 toast.success(`成功预约课程: ${courseName}`, {
                     position: 'top-center',
                     duration: 3000
                 });
 
-                // 不再尝试刷新数据，纯粹依赖乐观更新
-                // 这样可以避免服务器返回的数据与前端更新冲突
+                // 更新此课程的预约状态 - 无论是普通预约还是重新预约，都设置为confirmed
+                setBookingStatus(prev => ({
+                    ...prev,
+                    [courseId]: 'confirmed'
+                }));
+
+                // 刷新课程数据以更新预约人数
+                try {
+                    const updatedCourse = await courseApi.refreshCourseInfo(courseId);
+                    if (updatedCourse && updatedCourse.data) {
+                        // 更新课程预约人数
+                        setCourses(prev => prev.map(course =>
+                            course.id === courseId
+                                ? { ...course, bookedCount: updatedCourse.data.bookedCount || course.bookedCount + 1 }
+                                : course
+                        ));
+                    }
+                } catch (refreshError) {
+                    console.error('刷新课程信息失败:', refreshError);
+                    // 尽管刷新失败，但预约已成功，所以不中断流程
+                }
             } else {
-                // 如果API请求失败，恢复原状态
-                const errorMessage = response?.message || '预约失败，请稍后重试';
+                // 预约失败，但API返回了响应
+                const errorMessage = bookingResponse?.message || '预约失败，请稍后重试';
                 toast.error(errorMessage, {
                     position: 'top-center',
                     duration: 3000
                 });
-
-                // 恢复预约状态和课程预约人数
-                setBookingStatus(prev => ({
-                    ...prev,
-                    [courseId]: 'not_booked'
-                }));
-
-                setCourses(prevCourses =>
-                    prevCourses.map(course =>
-                        course.id === courseId
-                            ? { ...course, bookedCount: Math.max(0, (course.bookedCount || 0) - 1) }
-                            : course
-                    )
-                );
             }
-        } catch (error) {
-            console.error(`预约课程失败，课程ID: ${courseId}`, error);
-            toast.error('预约失败，发生意外错误，请稍后再试', {
+        } catch (error: any) {
+            // 捕获网络错误或其他异常
+            console.error('预约课程错误:', error);
+            const errorMessage = error.message || '预约课程时发生错误，请重试';
+            toast.error(`预约失败: ${errorMessage}`, {
                 position: 'top-center',
                 duration: 3000
             });
-
-            // 恢复预约状态和课程预约人数
-            setBookingStatus(prev => ({
-                ...prev,
-                [courseId]: 'not_booked'
-            }));
-
-            setCourses(prevCourses =>
-                prevCourses.map(course =>
-                    course.id === courseId
-                        ? { ...course, bookedCount: Math.max(0, (course.bookedCount || 0) - 1) }
-                        : course
-                )
-            );
         } finally {
-            // 延迟关闭加载状态，使动画看起来更流畅
-            setTimeout(() => {
-                setLoadingCourseId('');
-            }, 300);
+            // 完成加载状态
+            setLoadingCourseId('');
         }
     };
 
-    // 处理取消预订
+    // 处理取消预约
     const handleCancelBooking = async (courseId: string, courseName: string) => {
-        // 检查用户角色权限
-        if (!canUserBookCourse()) {
-            toast.error('只有普通社员才能取消预约课程', {
+        // 如果用户未登录，提示登录
+        if (!isAuthenticated) {
+            toast.error('请先登录才能取消预约', {
                 position: 'top-center',
                 duration: 3000
             });
             return;
         }
 
+        // 如果正在加载，不执行操作
+        if (loadingCourseId === courseId) return;
+
+        // 设置当前正在操作的课程ID
+        setLoadingCourseId(courseId);
+
         try {
-            setLoadingCourseId(courseId);
+            // 调用取消预约API
+            const cancelResponse = await bookingApi.cancelBooking(courseId);
 
-            // 乐观更新UI状态
-            // 1. 临时更新预约状态
-            setBookingStatus(prev => ({
-                ...prev,
-                [courseId]: 'not_booked'
-            }));
-
-            // 2. 临时更新课程预约人数
-            setCourses(prevCourses => {
-                // 获取当前课程的预约人数
-                const currentCourse = prevCourses.find(course => course.id === courseId);
-                // 确保获取的是精确的预约人数，可能是0也可能是其他值
-                const oldCount = currentCourse && currentCourse.bookedCount !== undefined ?
-                    currentCourse.bookedCount : 0;
-
-                console.log(`取消预约前课程 "${courseName}" (ID: ${courseId}) 的预约人数: ${oldCount}`);
-
-                // 更新预约人数，确保-1是基于准确的初始值，且不会小于0
-                const newCourses = prevCourses.map(course =>
-                    course.id === courseId && (course.bookedCount !== undefined ? course.bookedCount : 0) > 0
-                        ? {
-                            ...course,
-                            bookedCount: Math.max(0, (course.bookedCount !== undefined ? course.bookedCount : 0) - 1)
-                        }
-                        : course
-                );
-
-                // 获取更新后的预约人数
-                const updatedCourse = newCourses.find(course => course.id === courseId);
-                const newCount = updatedCourse && updatedCourse.bookedCount !== undefined ?
-                    updatedCourse.bookedCount : 0;
-
-                console.log(`取消预约后课程 "${courseName}" (ID: ${courseId}) 的预约人数: ${newCount}`);
-
-                return newCourses;
-            });
-
-            // 发送实际请求
-            const response = await bookingApi.cancelBooking(courseId);
-
-            if (response && (response.success !== false)) {
+            // 检查API响应是否成功
+            if (cancelResponse && cancelResponse.success) {
+                // 取消预约成功
                 toast.success(`已取消课程预约: ${courseName}`, {
                     position: 'top-center',
                     duration: 3000
                 });
 
-                // 不再尝试刷新数据，纯粹依赖乐观更新
-                // 这样可以避免服务器返回的数据与前端更新冲突
+                // 更新此课程的预约状态 - 取消预约后状态应为canceled而非not_booked
+                setBookingStatus(prev => ({
+                    ...prev,
+                    [courseId]: 'canceled'
+                }));
+
+                // 刷新课程数据以更新预约人数
+                try {
+                    const updatedCourse = await courseApi.refreshCourseInfo(courseId);
+                    if (updatedCourse && updatedCourse.data) {
+                        // 更新课程预约人数
+                        setCourses(prev => prev.map(course =>
+                            course.id === courseId
+                                ? { ...course, bookedCount: updatedCourse.data.bookedCount || Math.max(0, course.bookedCount - 1) }
+                                : course
+                        ));
+                    }
+                } catch (refreshError) {
+                    console.error('刷新课程信息失败:', refreshError);
+                    // 尽管刷新失败，但取消预约已成功，所以不中断流程
+                }
             } else {
-                // 如果API请求失败，恢复原状态
-                const errorMessage = response?.message || '取消预约失败，请稍后重试';
+                // 取消预约失败，但API返回了响应
+                const errorMessage = cancelResponse?.message || '取消预约失败，请稍后重试';
                 toast.error(errorMessage, {
                     position: 'top-center',
                     duration: 3000
                 });
-
-                // 恢复预约状态和课程预约人数
-                setBookingStatus(prev => ({
-                    ...prev,
-                    [courseId]: 'confirmed'
-                }));
-
-                setCourses(prevCourses =>
-                    prevCourses.map(course =>
-                        course.id === courseId
-                            ? { ...course, bookedCount: (course.bookedCount || 0) + 1 }
-                            : course
-                    )
-                );
             }
-        } catch (error) {
-            console.error(`取消预约失败，课程ID: ${courseId}`, error);
-            toast.error('取消预约失败，发生意外错误，请稍后再试', {
+        } catch (error: any) {
+            // 捕获网络错误或其他异常
+            console.error('取消预约错误:', error);
+            const errorMessage = error.message || '取消预约时发生错误，请重试';
+            toast.error(`取消失败: ${errorMessage}`, {
                 position: 'top-center',
                 duration: 3000
             });
-
-            // 恢复预约状态和课程预约人数
-            setBookingStatus(prev => ({
-                ...prev,
-                [courseId]: 'confirmed'
-            }));
-
-            setCourses(prevCourses =>
-                prevCourses.map(course =>
-                    course.id === courseId
-                        ? { ...course, bookedCount: (course.bookedCount || 0) + 1 }
-                        : course
-                )
-            );
         } finally {
-            // 延迟关闭加载状态，使动画看起来更流畅
-            setTimeout(() => {
-                setLoadingCourseId('');
-            }, 300);
+            // 完成加载状态
+            setLoadingCourseId('');
         }
     };
 
-    // 根据星期和时间槽获取课程
-    const getCourseBySlot = (weekday: string, timeSlot: string) => {
-        return courses.find(
-            course => course.weekday === weekday && course.timeSlot === timeSlot
+    // 获取指定周几的课程
+    const getCoursesByWeekday = (weekday: string) => {
+        return courses.filter(course => course.weekday === weekday);
+    };
+
+    // 获取用户对某课程的预约状态
+    const getUserBookingStatus = (courseId: string): string => {
+        // 默认状态为未预约
+        const status = bookingStatus[courseId] || 'not_booked';
+        return status;
+    };
+
+    // 计算课程在时间轴上的位置和高度 - 修改为使用像素高度并添加顶部留白
+    const calculateCoursePosition = (course: Course) => {
+        try {
+            const { start, end } = parseTimeSlot(course.timeSlot);
+            // 计算顶部位置（相对于最小时间）(添加顶部30px的留白)
+            const top = ((start - minTime) / 30) * 60 + 30; // 每30分钟60px高度，上方留白30px
+            // 计算高度（基于时间跨度）
+            const height = ((end - start) / 30) * 60; // 每30分钟60px高度
+
+            // 确保1小时课程有足够高度
+            const minHeight = 110; // 最小高度像素
+            const adjustedHeight = Math.max(height, minHeight);
+
+            return {
+                top: `${top}px`,
+                height: `${adjustedHeight}px`,
+                minHeight: '110px'
+            };
+        } catch (e) {
+            // 默认值，用于无法解析的时间段
+            return { top: '30px', height: '110px', minHeight: '110px' };
+        }
+    };
+
+    // 渲染时间刻度 - 修改为使用固定像素间隔
+    const renderTimeLabels = () => {
+        return (
+            <div className="relative h-full flex flex-col">
+                {/* 添加顶部留白 */}
+                <div className="h-[30px]"></div>
+
+                {timeRange.map((time, index) => {
+                    // 判断是整点还是半点
+                    const isHour = time.endsWith(':00');
+                    const labelClass = isHour ? 'text-xs font-medium' : 'text-[10px] text-gray-400';
+
+                    // 计算每个时间标签的顶部位置 (添加顶部30px的留白)
+                    const topPosition = index * 60 + 30; // 每个时间标签间隔60px，上方留白30px
+
+                    return (
+                        <div
+                            key={time}
+                            className={`text-gray-500 absolute right-2`}
+                            style={{
+                                top: `${topPosition}px`,
+                                transform: 'translateY(-50%)'
+                            }}
+                        >
+                            <span className={labelClass}>{time}</span>
+                        </div>
+                    );
+                })}
+            </div>
         );
     };
 
-    // 判断用户预约状态
-    const getUserBookingStatus = (courseId: string): string => {
-        // 如果用户未登录，状态为未预约
-        if (!isAuthenticated) return 'not_booked';
-
-        // 检查预约状态缓存
-        const status = bookingStatus[courseId];
-
-        // 返回实际状态（confirmed, canceled, not_booked）
-        return status || 'not_booked';
-    };
-
-    // 渲染课程单元格
-    const renderCourseCell = (weekday: string, timeSlot: string) => {
-        const course = getCourseBySlot(weekday, timeSlot);
-
-        if (!course) {
-            return <td className="border border-gray-200 p-2 bg-gray-50"></td>;
-        }
-
-        const bookingStatus = getUserBookingStatus(course.id);
-        const isBooked = bookingStatus === 'confirmed';
-        const isCanceled = bookingStatus === 'canceled';
+    // 渲染课程卡片
+    const renderCourseCard = (course: Course) => {
+        const { top, height, minHeight } = calculateCoursePosition(course);
+        const status = getUserBookingStatus(course.id);
         const isLoading = loadingCourseId === course.id;
+        const isBookable = canUserBookCourse();
+        const isFull = course.bookedCount >= course.maxCapacity;
+        const isBooked = status === 'confirmed';
+        const isCanceled = status === 'canceled';
 
-        // 根据预约状态设置按钮文本
-        let buttonLabel = '预约';
-        if (isBooked) {
-            buttonLabel = isLoading ? '取消中...' : '取消预约';
-        } else if (isCanceled) {
-            buttonLabel = isLoading ? '预约中...' : '重新预约';
-        } else {
-            buttonLabel = isLoading ? '预约中...' : '预约';
-        }
+        // 计算状态相关的样式
+        let statusClass = '';
+        let actionButton = null;
 
-        // 根据预约状态设置单元格背景色和边框
-        let cellStyle = '';
-        if (isBooked) {
-            cellStyle = 'bg-yellow-50 border-l-4 border-yellow-500';
-        } else if (isCanceled) {
-            cellStyle = 'bg-gray-50 border-l-4 border-gray-400';
-        } else {
-            cellStyle = 'bg-white';
-        }
-
-        // 计算已预约人数（优先使用 bookedCount，如果没有则使用 bookedBy 数组长度）
-        // 确保即使是0也要显示为0，不要默认为其他值
-        const bookedCount = course.bookedCount !== undefined ? course.bookedCount :
-            (course.bookedBy ? course.bookedBy.length : 0);
-
-        // 计算是否已满
-        const isFull = bookedCount >= course.maxCapacity;
-        // 是否可以预约 - 考虑用户角色权限
-        const canBook = canUserBookCourse() && !isBooked && !isFull;
-
-        return (
-            <td className={`border border-gray-200 p-2 ${cellStyle} transition-all duration-300`}>
-                <div className={`text-center transition-opacity duration-300 ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
-                    <h3 className="font-bold">{course.name}</h3>
-                    <div className="text-sm">
-                        <p>导师: {course.instructor}</p>
-                        <p>地点: {course.location}</p>
-                        <p>
-                            {course.originalTimeSlot || timeSlot}
-                        </p>
-                        <div className="mt-1 flex justify-between text-xs">
-                            <span className={`${isFull ? 'text-red-500 font-bold' : 'text-gray-500'} transition-colors duration-300`}>
-                                已预约: {bookedCount}/{course.maxCapacity}
-                            </span>
-                            {isBooked && (
-                                <span className="text-yellow-500 font-bold animate-fadeIn">
-                                    ✓ 已预约
-                                </span>
+        switch (status) {
+            case 'confirmed':
+                statusClass = 'border-yellow-500 bg-yellow-500 hover:bg-yellow-600 shadow-md text-white';
+                if (isBookable) {
+                    actionButton = (
+                        <button
+                            onClick={() => handleCancelBooking(course.id, course.name)}
+                            disabled={isLoading}
+                            className="flex items-center text-xs font-medium bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1.5 rounded-md transition-colors whitespace-nowrap border border-red-200 shadow-sm"
+                        >
+                            {isLoading ? '取消中...' : (
+                                <>
+                                    <FiX className="mr-1 flex-shrink-0" />
+                                    <span>取消预约</span>
+                                </>
                             )}
-                            {isCanceled && (
-                                <span className="text-gray-500 animate-fadeIn">
-                                    已取消
+                        </button>
+                    );
+                }
+                break;
+            case 'canceled':
+                statusClass = 'border-blue-200 bg-blue-50 hover:bg-blue-100';
+                if (isBookable && !isFull) {
+                    actionButton = (
+                        <button
+                            onClick={() => handleBooking(course.id, course.name)}
+                            disabled={isLoading || isFull}
+                            className="flex items-center text-xs font-medium bg-yellow-100 text-yellow-600 hover:bg-yellow-200 px-2 py-1.5 rounded-md transition-colors whitespace-nowrap border border-yellow-200 shadow-sm"
+                        >
+                            {isLoading ? '预约中...' : (
+                                <>
+                                    <FiCheck className="mr-1 flex-shrink-0" />
+                                    <span>重新预约</span>
+                                </>
+                            )}
+                        </button>
+                    );
+                }
+                break;
+            default: // 'not_booked'
+                statusClass = 'border-gray-200 hover:border-gray-300 hover:bg-gray-50';
+                if (isBookable && !isFull) {
+                    actionButton = (
+                        <button
+                            onClick={() => handleBooking(course.id, course.name)}
+                            disabled={isLoading || isFull}
+                            className="flex items-center text-xs font-medium bg-yellow-100 text-yellow-600 hover:bg-yellow-200 px-2 py-1.5 rounded-md transition-colors whitespace-nowrap border border-yellow-200 shadow-sm"
+                        >
+                            {isLoading ? '预约中...' : (
+                                <>
+                                    <FiCheck className="mr-1 flex-shrink-0" />
+                                    <span>预约</span>
+                                </>
+                            )}
+                        </button>
+                    );
+                }
+                break;
+        }
+
+        // 确保卡片有最小高度，不管计算出来的高度多小
+        return (
+            <div
+                key={course.id}
+                className={`absolute left-1 right-1 rounded-md shadow-sm border ${statusClass} p-2 overflow-hidden transition-all hover:shadow-md`}
+                style={{ top, height, minHeight }}
+            >
+                <div className="h-full flex flex-col justify-between">
+                    <div>
+                        <div className="flex justify-between items-start mb-1">
+                            <h4 className={`text-sm font-semibold ${isBooked ? 'text-white' : 'text-gray-900'} truncate pr-1`}>
+                                {course.name}
+                            </h4>
+                            {course.danceType && (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${isBooked
+                                    ? 'bg-white text-yellow-700'
+                                    : course.danceType === 'public'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-yellow-100 text-yellow-800'
+                                    }`}>
+                                    {course.danceType === 'public' ? '公共课程' : course.danceType}
                                 </span>
                             )}
                         </div>
+
+                        <div className={`text-xs ${isBooked ? 'text-yellow-100' : 'text-gray-600'} grid grid-cols-1 gap-0.5`}>
+                            <div className="truncate flex items-center">
+                                <FiUser className={`mr-1 ${isBooked ? 'text-white' : 'text-yellow-500'} flex-shrink-0`} />
+                                {course.instructor}
+                            </div>
+                            <div className="truncate flex items-center">
+                                <FiMapPin className={`mr-1 ${isBooked ? 'text-white' : 'text-yellow-500'} flex-shrink-0`} />
+                                {course.location}
+                            </div>
+                            <div className="truncate flex items-center">
+                                <FiClock className={`mr-1 ${isBooked ? 'text-white' : 'text-yellow-500'} flex-shrink-0`} />
+                                {course.timeSlot}
+                            </div>
+                        </div>
                     </div>
 
-                    {isAuthenticated ? (
-                        user?.role === 'member' ? (
-                            <button
-                                onClick={() => {
-                                    if (isBooked) {
-                                        handleCancelBooking(course.id, course.name);
-                                    } else {
-                                        // 不管是cancelled还是not_booked，都是预约操作
-                                        handleBooking(course.id, course.name);
-                                    }
-                                }}
-                                disabled={isLoading || (isFull && !isBooked)}
-                                className={`mt-2 w-full py-1 px-2 text-white text-sm rounded transition-all duration-300 
-                                    ${isBooked
-                                        ? 'bg-red-500 hover:bg-red-600'
-                                        : isCanceled
-                                            ? 'bg-blue-500 hover:bg-blue-600'
-                                            : 'bg-yellow-500 hover:bg-yellow-600'
-                                    } ${(isLoading || (isFull && !isBooked)) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                {isFull && !isBooked
-                                    ? '名额已满'
-                                    : buttonLabel}
-                                {isLoading && (
-                                    <span className="ml-2 inline-block animate-spin">⊙</span>
-                                )}
-                            </button>
-                        ) : (
-                            <div className="mt-2 text-sm text-gray-500 italic">
-                                {user?.role === 'leader' ? '舞种领队无需预约' : '管理员无需预约'}
-                            </div>
-                        )
-                    ) : (
-                        <button
-                            onClick={() => router.push(`/auth/login?redirect=/schedule`)}
-                            disabled={isFull}
-                            className={`mt-2 w-full py-1 px-2 text-white text-sm rounded transition-all duration-300
-                                bg-yellow-500 hover:bg-yellow-600
-                                ${isFull ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            {isFull ? '名额已满' : '登录后预约'}
-                        </button>
-                    )}
+                    <div className="mt-auto pt-1 flex items-center justify-between">
+                        <div className="min-w-0">
+                            {actionButton}
+                        </div>
+
+                        <div className="flex items-center flex-shrink-0">
+                            {isBooked && !actionButton && (
+                                <span className="inline-flex items-center text-xs font-medium text-white bg-yellow-600 px-2 py-0.5 rounded-full border border-yellow-300">
+                                    <FiCheck className="mr-1 flex-shrink-0 text-white" />
+                                    <span>已预约</span>
+                                </span>
+                            )}
+                            {isCanceled && !actionButton && (
+                                <span className="inline-flex items-center text-xs font-medium text-blue-600 mr-2 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                                    <FiX className="mr-1 flex-shrink-0 text-blue-500" />
+                                    <span>已取消</span>
+                                </span>
+                            )}
+                            <span className={`inline-flex items-center text-xs font-medium ${isBooked
+                                    ? 'text-white bg-yellow-600 border border-yellow-300'
+                                    : isFull
+                                        ? 'text-red-600 bg-red-50'
+                                        : 'text-gray-500 bg-gray-50'
+                                } px-1.5 py-0.5 rounded-full`}>
+                                {isFull && !isBooked ? <FiAlertCircle className="mr-1 flex-shrink-0" /> : null}
+                                <span>{course.bookedCount || 0}/{course.maxCapacity}</span>
+                            </span>
+                        </div>
+                    </div>
                 </div>
-            </td>
+            </div>
         );
     };
 
-    if (loading) {
+    // 加载状态
+    if (loading && !refreshing) {
         return (
-            <div className="flex flex-col justify-center items-center h-48 bg-white p-6 rounded-lg shadow-md">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-500"></div>
-                <p className="mt-4 text-gray-600">正在加载课程表...</p>
+            <div className="min-h-[700px] flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto"></div>
+                    <p className="mt-4 text-gray-600">加载课程表...</p>
+                </div>
             </div>
         );
     }
 
-    // 计算用户已预约的课程数量，仅计算confirmed状态的预约
-    const userBookedCoursesCount = isAuthenticated ?
-        Object.values(bookingStatus).filter(status => status === 'confirmed').length : 0;
-
     return (
-        <div className={`overflow-x-auto bg-white p-6 rounded-lg shadow-md transition-opacity duration-300 ${refreshing ? 'opacity-70' : 'opacity-100'}`}>
+        <div className="w-full px-0 py-6 overflow-visible">
             <DisplayApiError error={error} />
 
-            {/* 用户状态和预约摘要 */}
-            <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="flex justify-between items-center">
-                    <div>
-                        {isAuthenticated ? (
-                            <div className="flex items-center">
-                                <span className="font-semibold text-green-600">✓ 已登录</span>
-                                <span className="ml-2 text-gray-600">欢迎，{user?.username}</span>
-                                <div className="ml-4 text-sm bg-yellow-50 px-3 py-1 rounded border border-yellow-200">
-                                    已预约 <span className="font-bold text-yellow-600">{userBookedCoursesCount}</span> 节课程
+            <div className="mb-6 px-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h1 className="text-2xl font-bold text-gray-900">课程表</h1>
+                <button
+                    onClick={handleRefresh}
+                    disabled={refreshing}
+                    className={`flex items-center px-4 py-2 bg-yellow-50 text-yellow-600 rounded-md hover:bg-yellow-100 transition-colors ${refreshing ? 'opacity-70 cursor-not-allowed' : ''
+                        }`}
+                >
+                    <FiRefreshCw className={`mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                    {refreshing ? '同步中...' : '同步最新数据'}
+                </button>
+            </div>
+
+            {!isAuthenticated && (
+                <div className="mb-6 mx-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-yellow-700">
+                        登录后可以预约课程。
+                        <Link href="/auth/login" className="text-yellow-600 ml-2 hover:underline font-medium">
+                            立即登录
+                        </Link>
+                    </p>
+                </div>
+            )}
+
+            <style jsx global>{`
+                .scrollbar-hide::-webkit-scrollbar {
+                    display: none;
+                }
+                .scrollbar-hide {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+                @media (max-width: 640px) {
+                    .container {
+                        padding-left: 0;
+                        padding-right: 0;
+                    }
+                }
+                .time-grid-hour {
+                    border-top: 1px solid rgba(209, 213, 219, 1);
+                }
+                .time-grid-half-hour {
+                    border-top: 1px dashed rgba(229, 231, 235, 1);
+                }
+                .schedule-column {
+                    position: relative;
+                    min-height: ${timeRange.length * 60 + 60}px; /* 添加额外的高度，顶部30px和底部30px */
+                    height: ${timeRange.length * 60 + 60}px;
+                }
+                .schedule-table {
+                    display: grid;
+                    grid-template-columns: 70px repeat(7, 1fr);
+                    width: 100%;
+                }
+                .no-padding-right {
+                    padding-right: 0 !important;
+                }
+            `}</style>
+
+            <div className={scheduleTableStyles.tableContainer}>
+                {/* 课程表容器 */}
+                <div className={scheduleTableStyles.scrollContainer + " no-padding-right"}>
+                    <div className="schedule-table">
+                        {/* 时间轴标签 */}
+                        <div className="bg-white border-r border-gray-100">
+                            <div className="h-12 sticky top-0 z-10 bg-white"></div>
+                            <div className="relative schedule-column">
+                                {renderTimeLabels()}
+                            </div>
+                        </div>
+
+                        {/* 周几列 */}
+                        {weekdays.map(weekday => (
+                            <div key={weekday} className="border-r border-gray-100 last:border-r-0">
+                                <div className="h-12 px-2 py-3 bg-yellow-50 text-center sticky top-0 z-10 border-b border-yellow-100">
+                                    <h3 className="text-sm font-medium text-yellow-800">{weekday}</h3>
+                                </div>
+                                <div className="relative schedule-column">
+                                    {/* 顶部留白 */}
+                                    <div className="h-[30px]"></div>
+
+                                    {/* 背景网格线 */}
+                                    {timeRange.map((time, index) => {
+                                        const isHour = time.endsWith(':00');
+                                        const lineClass = isHour ? 'time-grid-hour' : 'time-grid-half-hour';
+
+                                        // 使用固定像素位置 (添加顶部30px的留白)
+                                        const topPosition = index * 60 + 30; // 每行高度60px，上方留白30px
+
+                                        return (
+                                            <div
+                                                key={`grid-${time}`}
+                                                className={`absolute left-0 right-0 ${lineClass}`}
+                                                style={{
+                                                    top: `${topPosition}px`,
+                                                    width: '100%'
+                                                }}
+                                            />
+                                        );
+                                    })}
+
+                                    {/* 底部留白 */}
+                                    <div className="h-[30px]" style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}></div>
+
+                                    {/* 课程卡片 */}
+                                    {getCoursesByWeekday(weekday).map(course => renderCourseCard(course))}
                                 </div>
                             </div>
-                        ) : (
-                            <div className="flex items-center">
-                                <span className="font-semibold text-orange-500">● 未登录</span>
-                                <span className="ml-2">登录后可以预约课程</span>
-                                <Link
-                                    href="/auth/login?redirect=/schedule"
-                                    className="ml-3 text-sm bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 transition"
-                                >
-                                    立即登录
-                                </Link>
-                            </div>
-                        )}
+                        ))}
                     </div>
-                    <button
-                        onClick={handleRefresh}
-                        disabled={refreshing}
-                        className={`flex items-center px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-100 transition-colors ${refreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        {refreshing ? '刷新中...' : '刷新数据'}
-                    </button>
                 </div>
             </div>
 
-            <div className={`overflow-x-auto transition-all duration-300 ${refreshing ? 'blur-[1px]' : ''}`}>
-                <table className="min-w-full bg-white border-collapse">
-                    <thead>
-                        <tr>
-                            <th className="border border-gray-200 p-3 bg-gray-100"></th>
-                            {weekdays.map(day => (
-                                <th key={day} className="border border-gray-200 p-3 bg-gray-100 font-semibold">
-                                    {day}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {displayTimeSlots.map(slot => (
-                            <tr key={slot}>
-                                <th className="border border-gray-200 p-3 bg-gray-100 font-semibold whitespace-nowrap">
-                                    {mapTimeSlotToDisplay(slot)}
-                                </th>
-                                {weekdays.map(day => (
-                                    <React.Fragment key={`${day}-${slot}`}>
-                                        {renderCourseCell(day, slot)}
-                                    </React.Fragment>
-                                ))}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            <div className="mt-4 px-4 text-xs text-gray-500 flex flex-col sm:flex-row justify-between items-center gap-2">
+                <p>最后更新时间: {new Date().toLocaleString()}</p>
 
-            <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <h3 className="text-lg font-semibold mb-3 text-gray-800 border-l-4 border-yellow-500 pl-3">课程须知：</h3>
-                <ul className="list-disc pl-6 space-y-2 text-gray-700">
-                    <li>以上为FlexCrew街舞社委员会制定的官方课表，如无特殊情况将严格按照课表时间上课</li>
-                    <li>除街舞社官方课程外，各舞种领队可根据实际情况组织额外训练，但不得影响其他正常课程</li>
-                    <li>所有常规课程<span className="font-semibold text-yellow-600">完全免费</span>，如发现任何私自收费行为，请向管理部举报</li>
-                    <li>举报联系方式：戴新雨（管理部负责人）18022107804</li>
-                    <li>课程预订和取消请提前规划，取消预订请至少提前24小时操作</li>
-                </ul>
+                <div className="flex items-center flex-wrap justify-center gap-4 my-2">
+                    <div className="flex items-center">
+                        <div className="w-3 h-3 rounded-full bg-yellow-500 border border-yellow-600 mr-1"></div>
+                        <span>已预约</span>
+                    </div>
+                    <div className="flex items-center">
+                        <div className="w-3 h-3 rounded-full bg-blue-50 border border-blue-300 mr-1"></div>
+                        <span>已取消</span>
+                    </div>
+                    <div className="flex items-center">
+                        <div className="w-3 h-3 rounded-full bg-white border border-gray-200 mr-1"></div>
+                        <span>未预约</span>
+                    </div>
+                </div>
             </div>
         </div>
     );
