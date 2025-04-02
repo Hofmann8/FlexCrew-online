@@ -38,9 +38,17 @@ class User(db.Model):
         """验证密码"""
         return bcrypt.check_password_hash(self.password_hash, password)
     
+    def is_admin(self):
+        """判断用户是否为管理员"""
+        return self.role == 'admin'
+    
+    def is_leader(self):
+        """判断用户是否为舞种领队"""
+        return self.role == 'leader'
+    
     def can_book_course(self):
         """判断用户是否有权限预约课程"""
-        return self.role == 'member'
+        return True  # 所有用户默认都可以预约课程
     
     def requires_email_verification(self):
         """判断用户是否需要邮箱验证"""

@@ -200,7 +200,7 @@ export default function Navbar() {
                                                 课程管理
                                             </Link>
                                             <Link
-                                                href={`/leaders/${user.dance_type}`}
+                                                href="/leaders/mytype"
                                                 className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                                                 onClick={() => setIsUserMenuOpen(false)}
                                             >
@@ -391,7 +391,7 @@ export default function Navbar() {
                                     课程管理
                                 </Link>
                                 <Link
-                                    href={`/leaders/${user.dance_type}`}
+                                    href="/leaders/mytype"
                                     className="block py-2 text-white hover:text-yellow-400"
                                     onClick={() => setIsUserMenuOpen(false)}
                                 >

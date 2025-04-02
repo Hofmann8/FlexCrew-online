@@ -4,6 +4,111 @@
 
 这是一个基于Flask的街舞社官网后端API服务，提供用户认证、课程管理和预订管理功能。使用SQLite作为数据库，轻量级且易于部署。
 
+## 数据库配置
+
+本项目使用SQLite数据库，默认数据库文件名为`streetdance.db`。如需修改数据库配置，请在`.env`文件中更新`DATABASE_URL`变量。
+
+```
+# 数据库配置示例
+DATABASE_URL=sqlite:///streetdance.db
+```
+
+## 最近更新
+
+**2025-03-28 更新**
+
+1. 为"舞种管理"页面增强以下接口：
+   - 更新 `/api/users/dance-type/{danceType}` - 现在返回所有该舞种的用户，不再限制角色，并添加注册时间字段
+   - 新增 `/api/courses/recent/dance-type/{danceType}` - 获取特定舞种最近的课程及详细预约名单
+   - 增强 `/api/courses/{courseId}` - 返回更详细的预约用户信息，包括预约时间
+
+2. 接口数据格式更新：
+   - 预约用户信息现在包含 id、name、username 和 bookingTime
+   - 用户信息现在包含 created_at 字段表示注册时间
+   - 所有时间戳均使用 ISO 格式，并包含 Z 后缀表示 UTC 时间
+
+3. 权限控制维持不变：
+   - 领队只能查看自己舞种的成员和课程
+   - 管理员可以查看所有舞种的成员和课程
+
+**2023-04-15 更新**
+
+1. 增强课程时间合理性检查:
+   - 新增对不合理时间段的检测功能
+   - 自动识别跨夜课程（结束时间早于开始时间）
+   - 限制课程时长在30分钟至4小时之间
+   - 显示详细的错误信息，包括具体的时间冲突原因
+   - 提高课程安排的规范性和用户体验
+
+**2023-04-10 更新**
+
+1. 新增课程时间冲突检查功能:
+   - 在创建课程时会自动检查相同地点和时间段是否已有其他课程
+   - 在更新课程时检查修改后的时间和地点是否与其他课程冲突
+   - 当存在冲突时会返回详细的冲突课程信息
+   - 确保同一时间同一地点不会安排多个课程，提高资源利用效率
+
+2. 安全数据更新:
+   - 提供一键更新脚本 `python update_all.py`，顺序执行更新领队和课程数据
+   - 更新领队用户脚本 `python update_leaders.py`，安全删除和创建领队用户
+   - 更新课程数据脚本 `python update_courses.py`，为领队创建示例课程
+
+**2023-04-03 更新**
+
+1. 为个人信息页面提供的新增API接口:
+   - `/api/bookings/user` - 获取用户预约记录（包含完整课程信息）
+   - 修复 `/api/users/{userId}/role` - 支持普通用户修改舞种偏好
+   - 更新 `/api/courses/{courseId}/cancel` - 移除角色限制，允许所有用户取消预约
+
+2. 数据模型更新:
+   - 为Booking模型添加updated_at字段
+   - 为Course模型添加get_weekday_name方法
+   - 接口支持dance_type和danceType两种参数格式，提高兼容性
+
+3. 数据库迁移:
+   - 添加了手动迁移脚本 `migrations/add_updated_at.py`，用于向已存在的数据库添加新字段
+   - 集成了Flask-Migrate支持，便于未来的数据库结构变更
+   - 使用方法：`python migrations/add_updated_at.py`
+
+4. 增加舞种领队:
+   - 新增Jazz、Waacking和Urban三个舞种及对应领队
+   - 支持从环境变量配置所有领队信息
+   - 领队数据初始化更加灵活，便于扩展
+   - 添加了安全的领队更新脚本：`python update_leaders.py`，可以安全地更新领队而不影响其他数据
+   - 添加课程更新脚本：`python update_courses.py`，为新的领队创建对应的课程
+
+## 安全更新数据
+
+系统提供了几个安全的数据更新脚本，可以在不影响其他数据的情况下更新领队和课程：
+
+1. **一键更新所有数据**
+   ```bash
+   python update_all.py
+   ```
+   此脚本会依次执行更新领队和更新课程的操作，最适合快速完成所有更新。
+
+2. **更新领队用户**
+   ```bash
+   python update_leaders.py
+   ```
+   此脚本会删除原有的领队用户，并根据环境变量创建新的领队用户。与数据库重置不同，
+   此操作不会影响已有的普通用户和管理员用户。
+
+3. **更新课程数据**
+   ```bash
+   python update_courses.py
+   ```
+   此脚本会为所有领队用户创建示例课程。可以在更新领队后运行，以确保每个领队都有对应的课程。
+
+**2023-04-02 更新**
+
+1. 数据库模型更改:
+   - 将课程的`weekday`字段改为`course_date`，类型由字符串改为日期类型。
+   - 为课程模型添加按周查询功能。
+
+2. 新增API接口:
+   - `/api/schedule` - 获取某一周的课程安排，前端可传入日期参数。
+
 ## 技术栈
 
 - Python 3.8+
@@ -472,11 +577,14 @@ flask run
    - 密码: admin123
 
 2. 舞种领队账号
-   - 用户名: leader1 (Breaking领队)
-   - 用户名: leader2 (Popping领队)
-   - 用户名: leader3 (Hip-Hop领队)
-   - 用户名: leader4 (Locking领队)
-   - 密码: leader123
+   - Hiphop领队: hiphop_leader
+   - Breaking领队: breaking_leader
+   - Locking领队: locking_leader
+   - Popping领队: popping_leader
+   - Jazz领队: jazz_leader
+   - Waacking领队: waacking_leader
+   - Urban领队: urban_leader
+   - 所有领队密码统一为: leader123
 
 3. 普通社员账号
    - 用户名: member1/member2
@@ -549,10 +657,6 @@ flask run
 
 - **URL**: `/api/users`
 - **方法**: `GET`
-- **请求头**: 
-  ```
-  Authorization: Bearer {token}
-  ```
 - **权限**: 仅超级管理员可访问
 - **说明**: 获取系统中所有用户的信息。
 
@@ -560,13 +664,164 @@ flask run
 
 - **URL**: `/api/users/role/{role}`
 - **方法**: `GET`
-- **请求头**: 
-  ```
-  Authorization: Bearer {token}
-  ```
 - **权限**: 仅超级管理员可访问
 - **参数**: role可以是'admin'、'leader'或'member'
 - **说明**: 按角色筛选用户。 
+
+### 9. 获取舞种的成员列表 (管理员和舞种领队)
+
+- **URL**: `/api/users/dance-type/{danceType}`
+- **方法**: `GET`
+- **权限**: 管理员可查看任何舞种，领队只能查看自己舞种
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **功能描述**: 获取特定舞种的所有用户列表（包括领队和成员）
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": 2,
+        "username": "breaking_leader",
+        "name": "Breaking领队",
+        "email": "breaking_leader@example.com",
+        "role": "leader",
+        "danceType": "breaking",
+        "created_at": "2025-03-28T10:00:00Z"
+      },
+      {
+        "id": 5,
+        "username": "member3",
+        "name": "张三",
+        "email": "member3@example.com",
+        "role": "member",
+        "danceType": "breaking",
+        "created_at": "2025-03-28T11:30:00Z"
+      }
+    ]
+  }
+  ```
+
+### 10. 获取特定舞种最近课程 (管理员和舞种领队)
+
+- **URL**: `/api/courses/recent/dance-type/{danceType}`
+- **方法**: `GET`
+- **权限**: 管理员可查看任何舞种，领队只能查看自己舞种
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **请求参数**: 
+  - `limit`: 查询参数，可选，限制返回的课程数量，默认为10
+- **功能描述**: 获取特定舞种最近的课程记录及详细预约情况
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": 5,
+        "name": "Breaking进阶班",
+        "instructor": "王老师",
+        "location": "舞蹈室A",
+        "weekday": "周四",
+        "courseDate": "2025-04-03",
+        "timeSlot": "19:00-20:30",
+        "maxCapacity": 15,
+        "bookedCount": 2,
+        "danceType": "breaking",
+        "leaderId": 2,
+        "description": "适合有基础的学员",
+        "bookedBy": [
+          {
+            "id": 5,
+            "name": "张三",
+            "username": "member3",
+            "bookingTime": "2025-03-29T14:20:30Z"
+          },
+          {
+            "id": 6,
+            "name": "李四",
+            "username": "member4",
+            "bookingTime": "2025-03-29T15:45:22Z"
+          }
+        ]
+      },
+      // 更多课程...
+    ]
+  }
+  ```
+
+### 11. 获取课程详细信息 (所有用户)
+
+- **URL**: `/api/courses/{courseId}`
+- **方法**: `GET`
+- **功能描述**: 获取特定课程的详细信息，包括预约名单
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": 5,
+      "name": "Breaking进阶班",
+      "instructor": "王老师",
+      "location": "舞蹈室A",
+      "weekday": "周四",
+      "courseDate": "2025-04-03",
+      "timeSlot": "19:00-20:30",
+      "maxCapacity": 15,
+      "bookedCount": 2,
+      "danceType": "breaking",
+      "leaderId": 2,
+      "description": "适合有基础的学员",
+      "bookedBy": [
+        {
+          "id": 5,
+          "name": "张三",
+          "username": "member3",
+          "bookingTime": "2025-03-29T14:20:30Z"
+        },
+        {
+          "id": 6,
+          "name": "李四",
+          "username": "member4",
+          "bookingTime": "2025-03-29T15:45:22Z"
+        }
+      ]
+    }
+  }
+  ```
+
+### 12. 获取用户预约记录（包含完整课程信息）
+
+- **URL**: `/api/bookings/user`
+- **方法**: `GET`
+- **权限**: 所有登录用户
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **功能描述**: 获取当前用户的所有预约记录（包括已取消的），按预约时间倒序排列，包含完整的课程信息
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": 25,
+        "userId": 3,
+        "courseId": 2,
+        "status": "confirmed", // 或 "canceled"
+        "createdAt": "2023-03-28T15:30:00Z",
+        "updatedAt": "2023-03-29T10:15:30Z",
+        // 课程详细信息
+        "name": "Breaking基础班",
+        "instructor": "张教练",
+        "location": "舞蹈室A",
+        "courseDate": "2023-04-05",
+        "weekday": "周三",
+        "timeSlot": "19:00-20:30",
+        "dance_type": "breaking",
+        "danceType": "breaking"
+      },
+      // 更多预约记录...
+    ]
+  }
+  ```
 
 ## 五、用户管理模块
 
@@ -773,35 +1028,3 @@ flask run
     "message": "用户删除成功"
   }
   ```
-
-### 9. 获取舞种的成员列表 (管理员和舞种领队)
-
-- **URL**: `/api/users/dance-type/{danceType}`
-- **方法**: `GET`
-- **权限**: 管理员可查看任何舞种，领队只能查看自己舞种
-- **认证**: 需要JWT令牌（`Bearer Token`）
-- **功能描述**: 获取特定舞种的所有成员（member角色）列表
-- **返回格式**:
-  ```json
-  {
-    "success": true,
-    "data": [
-      {
-        "id": 5,
-        "username": "member3",
-        "name": "张三",
-        "email": "member3@example.com",
-        "role": "member",
-        "danceType": "breaking"
-      },
-      {
-        "id": 6,
-        "username": "member4",
-        "name": "李四",
-        "email": "member4@example.com",
-        "role": "member",
-        "danceType": "breaking"
-      }
-    ]
-  }
-  ``` 

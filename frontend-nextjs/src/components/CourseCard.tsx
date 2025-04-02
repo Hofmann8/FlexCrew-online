@@ -8,7 +8,6 @@ interface CourseCardProps {
     course: Course;
     onEdit: (course: Course) => void;
     onDelete: (courseId: string) => void;
-    onAssign?: (course: Course) => void;
     isAdmin: boolean;
 }
 
@@ -16,10 +15,13 @@ const CourseCard: React.FC<CourseCardProps> = ({
     course,
     onEdit,
     onDelete,
-    onAssign,
     isAdmin
 }) => {
     const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+
+    // 计算当前预约人数，解决bookedCount可能是undefined的问题
+    const currentBookedCount = course.bookedCount !== undefined ? course.bookedCount : (course.bookedBy?.length || 0);
+    const isFull = currentBookedCount >= course.maxCapacity;
 
     // 处理删除确认
     const handleDeleteClick = () => {
@@ -81,8 +83,8 @@ const CourseCard: React.FC<CourseCardProps> = ({
                     <div className="text-sm text-gray-600 flex items-center">
                         <FiUsers className="mr-2 text-yellow-500 flex-shrink-0" />
                         <span className="font-medium mr-1">容量:</span>
-                        <span className={course.bookedCount >= course.maxCapacity ? 'text-red-600 font-medium' : ''}>
-                            {course.bookedCount || course.bookedBy?.length || 0}/{course.maxCapacity}
+                        <span className={isFull ? 'text-red-600 font-medium' : ''}>
+                            {currentBookedCount}/{course.maxCapacity}
                         </span>
                     </div>
 
@@ -96,16 +98,6 @@ const CourseCard: React.FC<CourseCardProps> = ({
             </div>
 
             <div className="px-4 py-3 bg-gray-50 text-right sm:px-6 flex justify-end space-x-2">
-                {isAdmin && onAssign && (
-                    <button
-                        type="button"
-                        onClick={() => onAssign(course)}
-                        className="px-3 py-1.5 text-xs font-medium text-yellow-700 bg-yellow-50 rounded-md hover:bg-yellow-100 transition-colors"
-                    >
-                        分配归属
-                    </button>
-                )}
-
                 <button
                     type="button"
                     onClick={() => onEdit(course)}

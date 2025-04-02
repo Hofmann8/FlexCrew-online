@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, inspect
 from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
+from flask_migrate import Migrate
 from config import config_by_name
 import os
 import logging
@@ -13,6 +14,7 @@ from logging.handlers import RotatingFileHandler
 db = SQLAlchemy()
 jwt = JWTManager()
 bcrypt = Bcrypt()
+migrate = Migrate()
 
 def create_app(config_name='development'):
     """
@@ -53,40 +55,10 @@ def create_app(config_name='development'):
     
     # 初始化扩展
     db.init_app(app)
+    migrate.init_app(app, db)
     CORS(app)
     jwt.init_app(app)
     bcrypt.init_app(app)
-    
-    # 创建所有表并初始化数据
-    with app.app_context():
-        # 导入种子数据模块
-        from app.seed import seed_data
-        from app.models.user import User
-        
-        # 处理命令行参数
-        import sys
-        if '--reset-db' in sys.argv:
-            app.logger.info('收到重置数据库命令，正在重置数据库...')
-            db.drop_all()
-            db.create_all()
-            seed_data()
-            app.logger.info('数据库重置完成')
-        else:
-            # 确保数据库文件存在并创建所有表
-            db.create_all()
-            
-            # 检查users表是否有数据
-            try:
-                user_count = db.session.query(User).count()
-                if user_count == 0:
-                    app.logger.info('初始化数据库...')
-                    # 导入并初始化种子数据
-                    seed_data()
-            except Exception as e:
-                app.logger.error(f"检查用户表出错: {str(e)}")
-                # 尝试强制创建表
-                db.create_all()
-                seed_data()
     
     # 注册蓝图
     from app.api import api_bp

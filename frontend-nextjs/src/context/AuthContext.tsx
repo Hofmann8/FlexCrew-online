@@ -14,6 +14,7 @@ const AuthContext = createContext<AuthContextType>({
     register: async () => null,
     verifyEmail: async () => false,
     resendVerification: async () => false,
+    refreshUser: async () => false,
 });
 
 // 认证提供者组件
@@ -357,6 +358,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    // 刷新用户信息的方法
+    const refreshUser = async (): Promise<boolean> => {
+        try {
+            console.log('刷新用户信息...');
+            const userData = await authApi.getCurrentUser();
+
+            // 处理多种可能的响应格式
+            let validUserData = null;
+
+            if (userData && userData.id) {
+                validUserData = userData;
+            } else if (userData && userData.data && userData.data.id) {
+                validUserData = userData.data;
+            } else if (userData && userData.user && userData.user.id) {
+                validUserData = userData.user;
+            }
+
+            if (validUserData) {
+                console.log('获取到最新用户信息，更新状态');
+                // 数据兼容性处理：确保同时有dance_type和danceType字段
+                if (validUserData.danceType && !validUserData.dance_type) {
+                    validUserData.dance_type = validUserData.danceType;
+                } else if (validUserData.dance_type && !validUserData.danceType) {
+                    validUserData.danceType = validUserData.dance_type;
+                }
+                // 更新localStorage中的用户信息
+                localStorage.setItem('user_info', JSON.stringify(validUserData));
+                setUser(validUserData);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('刷新用户信息失败:', error);
+            return false;
+        }
+    };
+
     // 判断用户是否已认证
     const isAuthenticated = !!user;
 
@@ -370,6 +408,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         verifyEmail,
         resendVerification,
+        refreshUser,
     };
 
     return (

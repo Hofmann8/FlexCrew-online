@@ -146,6 +146,20 @@ export const courseApi = {
         return apiRequest('/courses');
     },
 
+    // 获取指定日期所在周的课程安排
+    getWeekSchedule: async (date?: string) => {
+        const queryString = date ? `?date=${date}` : '';
+        console.log('请求周课程表API，参数日期:', date);
+        try {
+            const response = await apiRequest(`/schedule${queryString}`);
+            console.log('周课程表API响应:', response);
+            return response;
+        } catch (error) {
+            console.error('获取周课程表失败:', error);
+            throw error;
+        }
+    },
+
     // 刷新获取指定课程的最新信息，包括预约人数
     refreshCourseInfo: async (courseId: string) => {
         return apiRequest(`/courses/${courseId}`);
@@ -179,7 +193,24 @@ export const courseApi = {
 export const bookingApi = {
     // 获取用户的所有预订
     getUserBookings: async () => {
-        return apiRequest('/bookings/user');
+        try {
+            console.log('调用获取用户预约记录API');
+            const response = await apiRequest('/bookings/user');
+            console.log('获取用户预约记录API响应:', response);
+
+            // 处理响应数据
+            if (response && response.success && Array.isArray(response.data)) {
+                return response.data;
+            } else if (response && Array.isArray(response)) {
+                return response;
+            } else {
+                console.error('无法解析API响应格式:', response);
+                return [];
+            }
+        } catch (error) {
+            console.error('获取用户预约记录出错:', error);
+            throw error;
+        }
     },
 
     // 预订课程 - 更新为正确的API路径
@@ -191,9 +222,20 @@ export const bookingApi = {
 
     // 取消预订 - 更新为正确的API路径
     cancelBooking: async (courseId: string) => {
-        return apiRequest(`/courses/${courseId}/cancel`, {
-            method: 'DELETE',
-        });
+        try {
+            console.log(`调用取消预订API, 课程ID: ${courseId}`);
+            const response = await apiRequest(`/courses/${courseId}/cancel`, {
+                method: 'DELETE',
+            });
+            console.log('取消预订API响应:', response);
+
+            // 修改判断逻辑：HTTP 200响应码就视为成功，即使响应体可能为空或不包含success字段
+            // 如果response存在且有success字段，使用该字段；否则，HTTP 200响应码就意味着成功
+            return response === undefined ? true : (response.success ?? true);
+        } catch (error) {
+            console.error('取消预订出错:', error);
+            throw error;
+        }
     },
 
     // 获取特定课程的预订状态

@@ -4,7 +4,7 @@ import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { FiUsers, FiBook, FiLayers } from 'react-icons/fi';
+import { FiUsers, FiBook } from 'react-icons/fi';
 
 const AdminLayout = ({ children }: { children: React.ReactNode }) => {
     const { user, isAuthenticated, isLoading } = useAuth();
@@ -29,7 +29,6 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
     const navItems = [
         { href: '/admin/users', label: '用户管理', icon: <FiUsers className="mr-2" /> },
         { href: '/admin/courses', label: '课程管理', icon: <FiBook className="mr-2" /> },
-        { href: '/admin/courses/assignments', label: '课程归属', icon: <FiLayers className="mr-2" /> },
     ];
 
     return (
@@ -51,8 +50,8 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
                                 key={item.href}
                                 href={item.href}
                                 className={`px-6 py-4 flex items-center whitespace-nowrap transition-all duration-200 ${pathname.startsWith(item.href)
-                                        ? 'bg-indigo-50 text-indigo-700 font-medium border-b-2 border-indigo-600'
-                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                    ? 'bg-indigo-50 text-indigo-700 font-medium border-b-2 border-indigo-600'
+                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                                     }`}
                             >
                                 {item.icon}

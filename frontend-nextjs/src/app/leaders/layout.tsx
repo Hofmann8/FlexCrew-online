@@ -28,7 +28,7 @@ const LeaderLayout = ({ children }: { children: React.ReactNode }) => {
 
     const navItems = [
         { href: '/leaders/courses', label: '课程管理', icon: <FiBook className="mr-2" /> },
-        { href: `/leaders/${user.danceType}`, label: '我的舞种', icon: <FiUser className="mr-2" /> },
+        { href: '/leaders/mytype', label: '我的舞种', icon: <FiUser className="mr-2" /> },
     ];
 
     return (

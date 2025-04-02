@@ -6,6 +6,7 @@ from app.models.user import User
 from app import db
 from sqlalchemy.exc import IntegrityError
 import os
+from datetime import datetime, date, timedelta
 
 @api_bp.route('/info')
 def info():
@@ -123,10 +124,29 @@ def get_course(course_id):
             'success': False,
             'message': '课程不存在'
         }), 404
-        
+    
+    # 获取基本课程信息
+    course_data = course.to_dict()
+    
+    # 获取预约用户的详细信息
+    booked_users = []
+    for booking in course.bookings:
+        if booking.status == 'confirmed':
+            user = User.query.get(booking.user_id)
+            if user:
+                booked_users.append({
+                    'id': user.id,
+                    'name': user.name,
+                    'username': user.username,
+                    'bookingTime': booking.created_at.isoformat() + 'Z'
+                })
+    
+    # 用详细的预约用户信息替换简单的用户ID列表
+    course_data['bookedBy'] = booked_users
+    
     return jsonify({
         'success': True,
-        'data': course.to_dict()
+        'data': course_data
     }), 200
 
 @api_bp.route('/courses/<int:course_id>/book', methods=['POST'])
@@ -235,13 +255,6 @@ def cancel_booking(course_id):
             'success': False,
             'message': '用户不存在'
         }), 404
-    
-    # 检查用户权限 - 只有普通社员才能取消预约
-    if not user.can_book_course():
-        return jsonify({
-            'success': False,
-            'message': '您的用户角色无权取消预约'
-        }), 403
     
     # 查找预订记录（不指定状态，查找任何状态的预约）
     booking = Booking.query.filter_by(
@@ -390,84 +403,197 @@ def get_admin_courses():
         'data': [course.to_dict() for course in courses]
     }), 200
 
+@api_bp.route('/schedule', methods=['GET'])
+def get_weekly_schedule():
+    """获取某一周的课程安排
+    
+    请求参数:
+        date: 日期字符串，格式为YYYY-MM-DD，默认为当天
+        
+    返回:
+        该周的所有课程，按日期分组
+    """
+    # 获取请求中的日期参数，默认为今天
+    date_str = request.args.get('date', date.today().isoformat())
+    
+    try:
+        # 解析日期
+        target_date = date.fromisoformat(date_str)
+        
+        # 获取该周的所有课程
+        week_courses = Course.get_week_courses(target_date)
+        
+        # 计算一周起始日和结束日
+        weekday = target_date.weekday()
+        week_start = target_date - timedelta(days=weekday)  # 周一
+        week_end = week_start + timedelta(days=6)  # 周日
+        
+        # 按日期分组课程
+        date_groups = {}
+        for i in range(7):
+            day = week_start + timedelta(days=i)
+            date_groups[day.isoformat()] = []
+        
+        # 将课程分配到各天
+        for course in week_courses:
+            date_groups[course.course_date.isoformat()].append(course.to_dict())
+        
+        # 构建结果
+        result = {
+            'weekStart': week_start.isoformat(),
+            'weekEnd': week_end.isoformat(),
+            'schedule': [
+                {
+                    'date': date_key,
+                    'courses': courses
+                }
+                for date_key, courses in date_groups.items()
+            ]
+        }
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        }), 200
+        
+    except ValueError:
+        return jsonify({
+            'success': False,
+            'message': '日期格式错误，请使用YYYY-MM-DD格式'
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取课程安排失败: {str(e)}'
+        }), 500
+
 @api_bp.route('/admin/courses', methods=['POST'])
 @jwt_required()
 def create_course():
-    """创建课程（管理员可创建任何课程，领队只能创建自己舞种的课程）"""
+    """创建课程"""
     current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
+    user = User.query.get(current_user_id)
     
-    # 检查用户权限
-    if not current_user or (current_user.role != 'admin' and current_user.role != 'leader'):
+    if not user or not user.is_admin() and not user.is_leader():
         return jsonify({
             'success': False,
-            'message': '无权访问此接口'
+            'message': '权限不足，您无权创建课程'
         }), 403
     
+    # 获取请求数据
     data = request.get_json()
+    if not data:
+        return jsonify({
+            'success': False,
+            'message': '请求数据为空'
+        }), 400
     
-    # 验证必要字段
-    required_fields = ['name', 'instructor', 'location', 'weekday', 'timeSlot']
+    # 验证必填字段
+    required_fields = ['name', 'instructor', 'location', 'courseDate', 'timeSlot']
     for field in required_fields:
-        if field not in data:
+        if field not in data or not data[field]:
             return jsonify({
                 'success': False,
-                'message': f'缺少必要字段: {field}'
+                'message': f'缺少必填字段: {field}'
             }), 400
     
-    # 处理课程归属（舞种）
-    dance_type = data.get('danceType')
-    leader_id = data.get('leaderId')
+    try:
+        # 解析课程日期
+        course_date = date.fromisoformat(data['courseDate'])
+    except ValueError:
+        return jsonify({
+            'success': False,
+            'message': '课程日期格式错误，请使用YYYY-MM-DD格式'
+        }), 400
     
-    # 如果是领队，只能创建自己舞种的课程
-    if current_user.role == 'leader':
-        dance_type = current_user.dance_type
-        leader_id = current_user_id
+    # 检查时间冲突
+    conflicts = Course.check_time_conflict(course_date, data['timeSlot'], data['location'])
     
-    # 创建课程
-    course = Course(
+    if conflicts:
+        if isinstance(conflicts[0], dict) and 'error' in conflicts[0]:
+            # 时间格式或有效性错误
+            error_message = conflicts[0]['error']
+            return jsonify({
+                'success': False,
+                'message': error_message
+            }), 400
+        else:
+            # 存在时间冲突的课程
+            conflict_courses = [f"{c.name}（{c.course_date.isoformat()} {c.time_slot}）" for c in conflicts]
+            return jsonify({
+                'success': False,
+                'message': f'该地点和时间段已被其他课程占用: {", ".join(conflict_courses)}'
+            }), 409
+
+    # 创建课程实例
+    new_course = Course(
         name=data['name'],
         instructor=data['instructor'],
         location=data['location'],
-        weekday=data['weekday'],
+        course_date=course_date,
         time_slot=data['timeSlot'],
-        max_capacity=data.get('maxCapacity', 20),
-        description=data.get('description', ''),
-        dance_type=dance_type,
-        leader_id=leader_id
+        description=data.get('description', '')
     )
     
+    # 设置课程最大容量
+    if 'maxCapacity' in data and data['maxCapacity']:
+        try:
+            new_course.max_capacity = int(data['maxCapacity'])
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'message': '最大容量必须是数字'
+            }), 400
+    
+    # 设置课程归属（舞种和领队）
+    if user.is_admin():
+        # 管理员可以设置任何舞种
+        if 'danceType' in data and data['danceType']:
+            new_course.dance_type = data['danceType']
+        
+        # 管理员可以直接指定领队
+        if 'leaderId' in data and data['leaderId']:
+            new_course.leader_id = data['leaderId']
+            # 如果指定了领队，自动设置对应的舞种
+            if data['leaderId']:
+                leader = User.query.get(data['leaderId'])
+                if leader and leader.dance_type:
+                    new_course.dance_type = leader.dance_type
+    else:
+        # 领队只能创建自己舞种的课程
+        new_course.dance_type = user.dance_type
+        new_course.leader_id = user.id
+    
     try:
-        db.session.add(course)
+        db.session.add(new_course)
         db.session.commit()
         
         return jsonify({
             'success': True,
-            'data': course.to_dict(),
+            'data': new_course.to_dict(),
             'message': '课程创建成功'
         }), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({
             'success': False,
-            'message': f'课程创建失败: {str(e)}'
+            'message': f'创建课程失败: {str(e)}'
         }), 500
 
 @api_bp.route('/admin/courses/<int:course_id>', methods=['PUT'])
 @jwt_required()
 def update_course(course_id):
-    """更新课程信息（管理员可更新任何课程，领队只能更新自己舞种的课程）"""
+    """更新课程"""
     current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
+    user = User.query.get(current_user_id)
     
-    # 检查用户权限
-    if not current_user or (current_user.role != 'admin' and current_user.role != 'leader'):
+    if not user or not user.is_admin() and not user.is_leader():
         return jsonify({
             'success': False,
-            'message': '无权访问此接口'
+            'message': '权限不足，您无权更新课程'
         }), 403
     
-    # 获取要更新的课程
+    # 获取课程
     course = Course.query.get(course_id)
     if not course:
         return jsonify({
@@ -475,37 +601,93 @@ def update_course(course_id):
             'message': '课程不存在'
         }), 404
     
-    # 领队只能更新自己舞种的课程
-    if current_user.role == 'leader' and (course.dance_type != current_user.dance_type and course.leader_id != current_user_id):
+    # 检查权限 - 领队只能修改自己舞种的课程
+    if not user.is_admin() and course.leader_id != user.id:
         return jsonify({
             'success': False,
-            'message': '您只能修改自己舞种的课程'
+            'message': '您只能修改自己创建的课程'
         }), 403
     
+    # 获取请求数据
     data = request.get_json()
+    if not data:
+        return jsonify({
+            'success': False,
+            'message': '请求数据为空'
+        }), 400
     
-    # 更新课程信息
+    # 记录原始位置和时间，用于检查冲突
+    original_location = course.location
+    original_date = course.course_date
+    original_time_slot = course.time_slot
+    
+    # 更新课程基本信息
     if 'name' in data:
         course.name = data['name']
     if 'instructor' in data:
         course.instructor = data['instructor']
+    
+    # 更新位置，时间相关信息（可能需要检查冲突）
+    location_changed = False
+    date_changed = False
+    time_slot_changed = False
+    
     if 'location' in data:
+        location_changed = data['location'] != original_location
         course.location = data['location']
-    if 'weekday' in data:
-        course.weekday = data['weekday']
+        
+    if 'courseDate' in data:
+        try:
+            new_date = date.fromisoformat(data['courseDate'])
+            date_changed = new_date != original_date
+            course.course_date = new_date
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'message': '课程日期格式错误，请使用YYYY-MM-DD格式'
+            }), 400
+            
     if 'timeSlot' in data:
+        time_slot_changed = data['timeSlot'] != original_time_slot
         course.time_slot = data['timeSlot']
-    if 'maxCapacity' in data:
+    
+    # 如果位置、日期或时间段有变更，需要检查冲突
+    if location_changed or date_changed or time_slot_changed:
+        conflicts = Course.check_time_conflict(
+            course.course_date, 
+            course.time_slot, 
+            course.location,
+            exclude_course_id=course_id  # 排除当前课程自身
+        )
+        
+        if conflicts:
+            if isinstance(conflicts[0], dict) and 'error' in conflicts[0]:
+                # 时间格式或有效性错误
+                error_message = conflicts[0]['error']
+                return jsonify({
+                    'success': False,
+                    'message': error_message
+                }), 400
+            else:
+                # 有时间冲突
+                conflict_courses = [f"{c.name}（{c.course_date.isoformat()} {c.time_slot}）" for c in conflicts]
+                return jsonify({
+                    'success': False,
+                    'message': f'该地点和时间段已被其他课程占用: {", ".join(conflict_courses)}'
+                }), 409
+    
+    # 更新其他信息
+    if 'maxCapacity' in data and data['maxCapacity']:
         course.max_capacity = data['maxCapacity']
     if 'description' in data:
         course.description = data['description']
     
-    # 只有管理员可以修改课程归属
-    if current_user.role == 'admin':
+    # 管理员可以更改归属
+    if user.is_admin():
         if 'danceType' in data:
             course.dance_type = data['danceType']
         if 'leaderId' in data:
-            course.leader_id = data['leaderId']
+            course.leader_id = data['leaderId'] if data['leaderId'] else None
     
     try:
         db.session.commit()
@@ -519,7 +701,7 @@ def update_course(course_id):
         db.session.rollback()
         return jsonify({
             'success': False,
-            'message': f'课程更新失败: {str(e)}'
+            'message': f'更新课程失败: {str(e)}'
         }), 500
 
 @api_bp.route('/admin/courses/<int:course_id>', methods=['DELETE'])
@@ -827,7 +1009,7 @@ def update_user_password():
 @api_bp.route('/users', methods=['POST'])
 @jwt_required()
 def create_user():
-    """创建新用户（仅管理员可创建领队用户）"""
+    """创建新用户（仅管理员可创建用户）"""
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
     
@@ -841,7 +1023,7 @@ def create_user():
     data = request.get_json()
     
     # 验证必要字段
-    required_fields = ['username', 'name', 'password', 'role']
+    required_fields = ['username', 'name', 'email', 'password', 'role']
     for field in required_fields:
         if field not in data:
             return jsonify({
@@ -849,25 +1031,20 @@ def create_user():
                 'message': f'缺少必要字段: {field}'
             }), 400
     
-    # 验证角色 - 管理员只能创建领队用户，普通社员通过注册流程创建
-    if data['role'] != 'leader':
+    # 验证角色
+    valid_roles = ['admin', 'leader', 'member']
+    if data['role'] not in valid_roles:
         return jsonify({
             'success': False,
-            'message': '管理员只能创建领队用户，普通社员需要通过注册流程'
+            'message': f'无效的角色，有效值为: {", ".join(valid_roles)}'
         }), 400
     
-    # 领队必须指定舞种
-    if 'dance_type' not in data or not data['dance_type']:
+    # 对于leader角色，必须指定舞种
+    if data['role'] == 'leader' and ('dance_type' not in data or not data['dance_type']):
         return jsonify({
             'success': False,
             'message': '领队必须指定舞种类型'
         }), 400
-    
-    # 创建邮箱 - 对于领队可以使用任何邮箱
-    email = data.get('email')
-    if not email:
-        # 为领队生成一个系统邮箱，格式为 username@example.com
-        email = f"{data['username']}@example.com"
     
     # 检查用户名和邮箱是否已存在
     if User.query.filter_by(username=data['username']).first():
@@ -876,7 +1053,7 @@ def create_user():
             'message': '用户名已存在'
         }), 409
     
-    if User.query.filter_by(email=email).first():
+    if User.query.filter_by(email=data['email']).first():
         return jsonify({
             'success': False,
             'message': '邮箱已存在'
@@ -886,9 +1063,9 @@ def create_user():
     new_user = User(
         username=data['username'],
         name=data['name'],
-        email=email,
+        email=data['email'],
         role=data['role'],
-        dance_type=data['dance_type'],
+        dance_type=data.get('dance_type'),  # 对于非领队角色，舞种可以为空
         # 管理员创建的用户默认已验证
         email_verified=True
     )
@@ -901,7 +1078,7 @@ def create_user():
         return jsonify({
             'success': True,
             'data': new_user.to_dict(),
-            'message': '领队用户创建成功'
+            'message': '用户创建成功'
         }), 201
     except Exception as e:
         db.session.rollback()
@@ -917,13 +1094,6 @@ def update_user_role(user_id):
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
     
-    # 检查权限
-    if not current_user or current_user.role != 'admin':
-        return jsonify({
-            'success': False,
-            'message': '无权更新用户角色'
-        }), 403
-    
     # 获取目标用户
     target_user = User.query.get(user_id)
     if not target_user:
@@ -934,33 +1104,48 @@ def update_user_role(user_id):
     
     data = request.get_json()
     
-    # 验证角色
-    if 'role' not in data:
+    # 权限检查 - 普通用户只能修改自己的信息
+    if current_user.role != 'admin' and current_user_id != user_id:
         return jsonify({
             'success': False,
-            'message': '缺少必要字段: role'
-        }), 400
+            'message': '无权更新其他用户信息'
+        }), 403
     
-    valid_roles = ['admin', 'leader', 'member']
-    if data['role'] not in valid_roles:
-        return jsonify({
-            'success': False,
-            'message': f'无效的角色，有效值为: {", ".join(valid_roles)}'
-        }), 400
-    
-    # 对于领队，必须指定舞种
-    if data['role'] == 'leader' and ('dance_type' not in data or not data['dance_type']):
-        return jsonify({
-            'success': False,
-            'message': '领队必须指定舞种类型'
-        }), 400
-    
-    # 更新角色
-    target_user.role = data['role']
+    # 验证角色 - 普通用户不能修改自己的角色
+    if 'role' in data:
+        if current_user.role != 'admin' and current_user_id == user_id:
+            # 普通用户尝试修改自己的角色，忽略此参数
+            pass
+        else:
+            # 管理员可以修改角色
+            valid_roles = ['admin', 'leader', 'member']
+            if data['role'] not in valid_roles:
+                return jsonify({
+                    'success': False,
+                    'message': f'无效的角色，有效值为: {", ".join(valid_roles)}'
+                }), 400
+            
+            # 对于领队，必须指定舞种
+            if data['role'] == 'leader':
+                # 兼容两种参数格式
+                dance_type = data.get('dance_type') or data.get('danceType')
+                if not dance_type:
+                    return jsonify({
+                        'success': False,
+                        'message': '领队必须指定舞种类型'
+                    }), 400
+                target_user.role = data['role']
     
     # 更新舞种（允许任何角色设置舞种，包括普通成员）
+    # 兼容两种参数格式
+    dance_type = None
     if 'dance_type' in data:
         dance_type = data['dance_type']
+    elif 'danceType' in data:
+        dance_type = data['danceType']
+    
+    # 如果提供了舞种参数
+    if dance_type is not None:
         # 如果舞种为"null"或空字符串，则将舞种设为None
         if dance_type == "null" or dance_type == "":
             target_user.dance_type = None
@@ -973,13 +1158,13 @@ def update_user_role(user_id):
         return jsonify({
             'success': True,
             'data': target_user.to_dict(),
-            'message': '用户角色更新成功'
+            'message': '用户信息更新成功'
         }), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({
             'success': False,
-            'message': f'用户角色更新失败: {str(e)}'
+            'message': f'用户信息更新失败: {str(e)}'
         }), 500
 
 @api_bp.route('/users/<int:user_id>', methods=['DELETE'])
@@ -1058,12 +1243,21 @@ def get_users_by_dance_type(dance_type):
             'message': '无权查看此舞种的成员'
         }), 403
     
-    # 获取该舞种的所有成员（仅限member角色）
-    members = User.query.filter_by(role='member', dance_type=dance_type).all()
+    # 获取该舞种的所有用户，不限角色
+    users = User.query.filter_by(dance_type=dance_type).all()
+    
+    # 构建详细的用户数据
+    user_data = []
+    for user in users:
+        # 从用户的 to_dict 方法获取基本信息
+        data = user.to_dict()
+        # 添加注册时间
+        data['created_at'] = user.created_at.isoformat() + 'Z'
+        user_data.append(data)
     
     return jsonify({
         'success': True,
-        'data': [member.to_dict() for member in members]
+        'data': user_data
     }), 200
 
 @api_bp.route('/users/<int:user_id>/dance-type', methods=['PUT'])
@@ -1196,4 +1390,115 @@ def get_system_logs():
         return jsonify({
             'success': False,
             'message': f'读取日志失败: {str(e)}'
-        }), 500 
+        }), 500
+
+@api_bp.route('/bookings/user', methods=['GET'])
+@jwt_required()
+def get_user_booking_records():
+    """获取当前登录用户的预约课程记录（包含完整课程信息）"""
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user:
+        return jsonify({
+            'success': False,
+            'message': '用户不存在'
+        }), 404
+    
+    # 获取用户所有预订（包括已取消的），按创建时间倒序排列
+    bookings = Booking.query.filter_by(user_id=current_user_id).order_by(Booking.created_at.desc()).all()
+    
+    # 构建响应数据
+    result = []
+    for booking in bookings:
+        # 获取课程信息
+        course = Course.query.get(booking.course_id)
+        if course:
+            # 现在可以直接使用booking的to_dict方法，因为数据库已经有updated_at字段
+            booking_data = booking.to_dict()
+            
+            course_data = course.to_dict()
+            
+            # 合并课程信息
+            booking_data.update({
+                'name': course_data['name'],
+                'instructor': course_data['instructor'],
+                'location': course_data['location'],
+                'courseDate': course_data['courseDate'],
+                'weekday': course_data['weekday'],
+                'timeSlot': course_data['timeSlot'],
+                'dance_type': course_data['danceType'],
+                'danceType': course_data['danceType']
+            })
+            
+            result.append(booking_data)
+    
+    return jsonify({
+        'success': True,
+        'data': result
+    }), 200
+
+@api_bp.route('/courses/recent/dance-type/<string:dance_type>', methods=['GET'])
+@jwt_required()
+def get_recent_courses_by_dance_type(dance_type):
+    """获取特定舞种最近的课程记录及预约情况
+    
+    参数：
+    - dance_type: 舞种类型
+    - limit: 查询参数，可选，限制返回的课程数量，默认为10
+    """
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    
+    # 检查用户权限
+    if not current_user:
+        return jsonify({
+            'success': False,
+            'message': '用户不存在'
+        }), 404
+    
+    # 权限检查：管理员可查看任何舞种，领队只能查看自己的舞种
+    if current_user.role != 'admin' and (current_user.role != 'leader' or current_user.dance_type != dance_type):
+        return jsonify({
+            'success': False,
+            'message': '无权查看此舞种的课程'
+        }), 403
+    
+    # 获取limit参数，默认为10
+    try:
+        limit = int(request.args.get('limit', 10))
+        if limit <= 0:
+            limit = 10
+    except ValueError:
+        limit = 10
+    
+    # 获取特定舞种最近的课程，按课程日期降序排序
+    courses = Course.query.filter_by(dance_type=dance_type).order_by(Course.course_date.desc()).limit(limit).all()
+    
+    # 构建详细的课程数据，包括预约用户信息
+    result = []
+    for course in courses:
+        # 获取基本课程信息
+        course_data = course.to_dict()
+        
+        # 获取预约用户的详细信息
+        booked_users = []
+        for booking in course.bookings:
+            if booking.status == 'confirmed':
+                user = User.query.get(booking.user_id)
+                if user:
+                    booked_users.append({
+                        'id': user.id,
+                        'name': user.name,
+                        'username': user.username,
+                        'bookingTime': booking.created_at.isoformat() + 'Z'
+                    })
+        
+        # 用详细的预约用户信息替换简单的用户ID列表
+        course_data['bookedBy'] = booked_users
+        result.append(course_data)
+    
+    return jsonify({
+        'success': True,
+        'data': result
+    }), 200 

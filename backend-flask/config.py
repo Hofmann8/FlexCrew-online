@@ -2,7 +2,8 @@ import os
 from dotenv import load_dotenv
 from datetime import timedelta
 
-load_dotenv()  # 加载.env文件中的环境变量
+# 重新加载.env文件，确保覆盖任何现有环境变量
+load_dotenv(override=True)  # 使用override=True参数确保.env的值覆盖已存在的环境变量
 
 # 获取当前文件所在目录的绝对路径
 basedir = os.path.abspath(os.path.dirname(__file__))

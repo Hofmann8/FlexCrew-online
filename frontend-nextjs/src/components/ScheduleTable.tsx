@@ -7,7 +7,7 @@ import { bookingApi, courseApi } from '@/services/api';
 import { Course } from '@/types';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
-import { FiRefreshCw, FiAlertCircle, FiCheck, FiX, FiClock, FiMapPin, FiUser, FiCalendar } from 'react-icons/fi';
+import { FiRefreshCw, FiAlertCircle, FiCheck, FiX, FiClock, FiMapPin, FiUser, FiCalendar, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 // 周几名称
 const weekdays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
@@ -31,9 +31,46 @@ const weekdayMap: Record<string, string> = {
     '星期日': '星期日'
 };
 
+// 日期格式化辅助函数
+const formatDate = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    return `${date.getMonth() + 1}月${date.getDate()}日`;
+};
+
+// 获取一周的开始日期（星期一）
+const getWeekStartDate = (date: Date): Date => {
+    const day = date.getDay() || 7; // 将周日的0转换为7
+    const diff = date.getDate() - day + 1; // 调整为星期一
+    return new Date(date.setDate(diff));
+};
+
+// 获取一周的日期数组
+const getWeekDates = (startDate: Date): Date[] => {
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        dates.push(date);
+    }
+    return dates;
+};
+
+// 格式化日期为YYYY-MM-DD
+const formatDateYYYYMMDD = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 // 预订状态接口
 interface BookingStatusMap {
     [courseId: string]: string; // 'not_booked', 'confirmed', 'canceled'
+}
+
+// 周课程数据接口
+interface WeekSchedule {
+    [date: string]: Course[];
 }
 
 // 将时间字符串转换为分钟数（从00:00开始）
@@ -70,7 +107,7 @@ const scheduleTableStyles = {
         text-yellow-800
         font-medium
         border-b border-yellow-100
-        h-12 flex items-center justify-center
+        h-20 flex flex-col items-center justify-center
     `,
     timeLabels: `
         text-xs text-right pr-2 text-gray-500
@@ -106,12 +143,32 @@ const scheduleTableStyles = {
 const ScheduleTable = () => {
     const router = useRouter();
     const { isAuthenticated, user } = useAuth();
-    const [courses, setCourses] = useState<Course[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [loadingCourseId, setLoadingCourseId] = useState<string>('');
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [weekStartDate, setWeekStartDate] = useState(getWeekStartDate(new Date()));
+    const [weekSchedule, setWeekSchedule] = useState<WeekSchedule>({});
     const [bookingStatus, setBookingStatus] = useState<BookingStatusMap>({});
-    const [refreshing, setRefreshing] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [apiError, setApiError] = useState<string | null>(null);
+    const [loadingCourseId, setLoadingCourseId] = useState<string>('');
+    // 添加防抖标记，避免重复发送请求
+    const [isProcessingRequest, setIsProcessingRequest] = useState(false);
+    // 添加课程列表状态变量
+    const [courses, setCourses] = useState<Course[]>([]);
+
+    // 计算当前周的日期
+    const weekDates = useMemo(() => {
+        const startDate = getWeekStartDate(selectedDate);
+        return getWeekDates(startDate);
+    }, [selectedDate]);
+
+    // 判断当前显示的是否为本周
+    const isCurrentWeek = useMemo(() => {
+        const today = new Date();
+        const currentWeekStartDate = getWeekStartDate(today);
+        const displayWeekStartDate = getWeekStartDate(selectedDate);
+
+        return formatDateYYYYMMDD(currentWeekStartDate) === formatDateYYYYMMDD(displayWeekStartDate);
+    }, [selectedDate]);
 
     // 时间范围计算 - 找出所有课程中最早的开始时间和最晚的结束时间
     const { timeRange, minTime, maxTime } = useMemo(() => {
@@ -152,8 +209,9 @@ const ScheduleTable = () => {
     }, [courses]);
 
     useEffect(() => {
-        loadCourses();
-    }, []);
+        loadWeekSchedule();
+        console.log('切换到新的周，起始日期:', formatDateYYYYMMDD(weekDates[0]));
+    }, [selectedDate]);
 
     useEffect(() => {
         // 只有在用户已登录且课程列表非空时，才加载预约状态
@@ -182,11 +240,118 @@ const ScheduleTable = () => {
         return null;
     };
 
+    // 加载周视图课程
+    const loadWeekSchedule = async () => {
+        try {
+            // 如果是通过预约/取消预约触发的重新加载，不要显示大的加载指示器
+            const isRefreshingData = isProcessingRequest;
+            if (!isRefreshingData) {
+                setIsLoading(true);
+            }
+            setApiError(null);
+            setIsProcessingRequest(true);
+
+            // 使用当前周的起始日期
+            const startDate = formatDateYYYYMMDD(weekDates[0]);
+            console.log('请求周起始日期:', startDate);
+            const scheduleResponse = await courseApi.getWeekSchedule(startDate);
+            console.log('获取到的课程表数据:', scheduleResponse);
+
+            if (scheduleResponse.success && scheduleResponse.data) {
+                // 处理API返回的周课程数据
+                const processedSchedule: WeekSchedule = {};
+
+                // 检查数据结构是否包含schedule数组
+                if (scheduleResponse.data.schedule && Array.isArray(scheduleResponse.data.schedule)) {
+                    // 新的数据结构处理: { schedule: [{ date, courses: [] }] }
+                    scheduleResponse.data.schedule.forEach((dayData: any) => {
+                        const date = dayData.date;
+                        const dayCourses = dayData.courses || [];
+
+                        // 过滤有效的课程数据
+                        const validCourses = dayCourses
+                            .filter((course: any) => course && course.id && String(course.id) !== 'undefined')
+                            .map((course: any) => ({
+                                ...course,
+                                id: String(course.id),
+                                bookedBy: Array.isArray(course.bookedBy) ? course.bookedBy : [],
+                                instructor: course.instructor || '未知教练',
+                                maxCapacity: course.maxCapacity || 20,
+                                location: course.location || '未指定地点',
+                                timeSlot: course.timeSlot || '未指定时间',
+                                courseDate: course.courseDate || date,
+                                // 直接使用后端返回的bookedCount字段，不再通过bookedBy长度计算
+                                bookedCount: course.bookedCount !== undefined ? course.bookedCount : 0
+                            }));
+
+                        processedSchedule[date] = validCourses;
+                    });
+                } else {
+                    // 兼容旧的数据结构处理: { date: courses[] }
+                    Object.entries(scheduleResponse.data).forEach(([date, dayCourses]) => {
+                        // 确保dayCourses是一个数组
+                        if (Array.isArray(dayCourses)) {
+                            // 过滤有效的课程数据
+                            const validCourses = dayCourses
+                                .filter(course => course && course.id && String(course.id) !== 'undefined')
+                                .map(course => ({
+                                    ...course,
+                                    id: String(course.id),
+                                    bookedBy: Array.isArray(course.bookedBy) ? course.bookedBy : [],
+                                    instructor: course.instructor || '未知教练',
+                                    maxCapacity: course.maxCapacity || 20,
+                                    location: course.location || '未指定地点',
+                                    timeSlot: course.timeSlot || '未指定时间',
+                                    courseDate: course.courseDate || date,
+                                    // 直接使用后端返回的bookedCount字段，不再通过bookedBy长度计算
+                                    bookedCount: course.bookedCount !== undefined ? course.bookedCount : 0
+                                }));
+
+                            processedSchedule[date] = validCourses;
+                        } else {
+                            processedSchedule[date] = [];
+                        }
+                    });
+                }
+
+                console.log('处理后的课程表数据:', processedSchedule);
+                setWeekSchedule(processedSchedule);
+
+                // 将所有课程合并到一个数组中，用于计算时间范围
+                const allCourses: Course[] = [];
+                Object.values(processedSchedule).forEach(dayCourses => {
+                    allCourses.push(...dayCourses);
+                });
+
+                console.log('所有课程数据:', allCourses);
+                setCourses(allCourses);
+
+                // 如果是刷新数据，显示成功提示
+                if (isRefreshingData) {
+                    toast.success('数据已更新', {
+                        position: 'top-center',
+                        duration: 1500
+                    });
+                }
+            } else {
+                throw new Error('获取课程表数据失败');
+            }
+        } catch (err: any) {
+            console.error('加载课程表错误:', err);
+            const errorMessage = err.message || '加载课程失败，请刷新页面重试';
+            setApiError(errorMessage);
+        } finally {
+            setIsLoading(false);
+            setIsProcessingRequest(false);
+        }
+    };
+
+    // 兼容性方法 - 如果后端未就绪，仍使用旧方法获取课程
     const loadCourses = async () => {
         try {
-            setLoading(true);
-            setError(null);
-            setRefreshing(true);
+            setIsLoading(true);
+            setApiError(null);
+            setIsProcessingRequest(true);
 
             const coursesResponse = await courseApi.getAllCourses();
 
@@ -218,27 +383,26 @@ const ScheduleTable = () => {
                     timeSlot: course.timeSlot || course.time || '未知时间',
                     // 确保maxCapacity有值
                     maxCapacity: course.maxCapacity || 20,
-                    // 确保bookedCount有值
-                    bookedCount: course.bookedCount !== undefined ?
-                        course.bookedCount :
-                        (Array.isArray(course.bookedBy) ? course.bookedBy.length : 0)
+                    // 直接使用后端返回的bookedCount字段，不再通过bookedBy长度计算
+                    bookedCount: course.bookedCount !== undefined ? course.bookedCount : 0
                 };
             }).filter(Boolean);
 
             // 使用过渡动画更新状态
             setTimeout(() => {
                 setCourses(normalizedCourses);
-                setRefreshing(false);
+                setIsProcessingRequest(false);
             }, 300);
         } catch (err: any) {
             const errorMessage = err.message || '加载课程失败，请刷新页面重试';
-            setError(errorMessage);
-            setRefreshing(false);
+            setApiError(errorMessage);
+            setIsProcessingRequest(false);
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
+    // 加载所有课程的预订状态
     const loadAllBookingStatuses = async () => {
         if (!isAuthenticated || courses.length === 0) {
             return;
@@ -246,7 +410,18 @@ const ScheduleTable = () => {
 
         try {
             // 获取所有课程的ID
-            const courseIds = courses.map(course => course.id);
+            const courseIds = courses
+                .filter(course => course && course.id && course.id !== 'undefined' && course.id.trim() !== '')
+                .map(course => course.id);
+
+            // 如果没有有效的课程ID，直接返回
+            if (courseIds.length === 0) {
+                console.log('没有找到有效的课程ID，无法获取预订状态');
+                return;
+            }
+
+            // 打印日志，便于调试
+            console.log('正在获取课程预订状态，课程ID:', courseIds);
 
             // 批量获取所有课程的预订状态
             const statuses = await bookingApi.getBatchBookingStatus(courseIds);
@@ -271,16 +446,17 @@ const ScheduleTable = () => {
                 setBookingStatus(statuses);
             }
         } catch (error) {
-            setError('加载预约状态失败，请刷新页面重试');
+            console.error('加载预约状态失败:', error);
+            setApiError('加载预约状态失败，请刷新页面重试');
         }
     };
 
     // 添加一个手动刷新功能
     const handleRefresh = async () => {
         // 如果已经在刷新中，不重复操作
-        if (refreshing) return;
+        if (isProcessingRequest) return;
 
-        setRefreshing(true);
+        setIsProcessingRequest(true);
         // 添加清晰的提示，表明正在同步数据
         toast.success('正在从服务器同步最新数据...', {
             position: 'top-center',
@@ -289,35 +465,33 @@ const ScheduleTable = () => {
 
         try {
             // 获取最新的课程数据
-            await loadCourses();
+            await loadWeekSchedule();
 
             // 如果用户已登录，同时更新预约状态
             if (isAuthenticated) {
                 await loadAllBookingStatuses();
             }
-
-            // 刷新成功的提示
-            toast.success('数据同步成功！', {
-                position: 'top-center',
-                duration: 1500
-            });
         } catch (error) {
             // 刷新失败的提示
             toast.error('数据同步失败，请重试。', {
                 position: 'top-center',
                 duration: 2000
             });
-        } finally {
-            setRefreshing(false);
         }
     };
 
     // 刷新单个课程的预约状态
     const refreshSingleCourse = async (courseId: string) => {
-        if (!isAuthenticated || !courseId) return;
+        // 确保courseId是有效的字符串，不是undefined或"undefined"
+        if (!isAuthenticated || !courseId || courseId === 'undefined') {
+            console.warn('无法刷新预约状态：无效的课程ID', courseId);
+            return;
+        }
 
         try {
-            // 修正API调用，使用getCourseBookingStatus替代getBookingStatus
+            console.log(`正在刷新课程ID=${courseId}的预约状态`);
+
+            // 使用getCourseBookingStatus获取课程预约状态
             const status = await bookingApi.getCourseBookingStatus(courseId);
 
             // 更新状态
@@ -326,7 +500,7 @@ const ScheduleTable = () => {
                 [courseId]: status || 'not_booked'
             }));
         } catch (error) {
-            console.error('刷新课程预约状态失败:', error);
+            console.error(`刷新课程ID=${courseId}的预约状态失败:`, error);
         }
     };
 
@@ -371,21 +545,8 @@ const ScheduleTable = () => {
                     [courseId]: 'confirmed'
                 }));
 
-                // 刷新课程数据以更新预约人数
-                try {
-                    const updatedCourse = await courseApi.refreshCourseInfo(courseId);
-                    if (updatedCourse && updatedCourse.data) {
-                        // 更新课程预约人数
-                        setCourses(prev => prev.map(course =>
-                            course.id === courseId
-                                ? { ...course, bookedCount: updatedCourse.data.bookedCount || course.bookedCount + 1 }
-                                : course
-                        ));
-                    }
-                } catch (refreshError) {
-                    console.error('刷新课程信息失败:', refreshError);
-                    // 尽管刷新失败，但预约已成功，所以不中断流程
-                }
+                // 重新加载课程表数据以更新预约人数
+                await loadWeekSchedule();
             } else {
                 // 预约失败，但API返回了响应
                 const errorMessage = bookingResponse?.message || '预约失败，请稍后重试';
@@ -408,8 +569,25 @@ const ScheduleTable = () => {
         }
     };
 
-    // 处理取消预约
-    const handleCancelBooking = async (courseId: string, courseName: string) => {
+    // 防抖函数：防止短时间内多次重复请求
+    const debounceRequest = (fn: Function, delay: number = 500) => {
+        let timer: ReturnType<typeof setTimeout>;
+        return function (this: any, ...args: any[]) {
+            if (isProcessingRequest) return;
+            setIsProcessingRequest(true);
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                fn.apply(this, args);
+                // 操作完成后重置处理状态
+                setTimeout(() => {
+                    setIsProcessingRequest(false);
+                }, delay);
+            }, 10);
+        };
+    };
+
+    // 包装的取消预约函数，添加防抖保护
+    const debouncedCancelBooking = debounceRequest(async (courseId: string, courseName: string) => {
         // 如果用户未登录，提示登录
         if (!isAuthenticated) {
             toast.error('请先登录才能取消预约', {
@@ -427,10 +605,11 @@ const ScheduleTable = () => {
 
         try {
             // 调用取消预约API
+            console.log(`发送取消预约请求: 课程ID=${courseId}`);
             const cancelResponse = await bookingApi.cancelBooking(courseId);
 
             // 检查API响应是否成功
-            if (cancelResponse && cancelResponse.success) {
+            if (cancelResponse) {
                 // 取消预约成功
                 toast.success(`已取消课程预约: ${courseName}`, {
                     position: 'top-center',
@@ -443,21 +622,8 @@ const ScheduleTable = () => {
                     [courseId]: 'canceled'
                 }));
 
-                // 刷新课程数据以更新预约人数
-                try {
-                    const updatedCourse = await courseApi.refreshCourseInfo(courseId);
-                    if (updatedCourse && updatedCourse.data) {
-                        // 更新课程预约人数
-                        setCourses(prev => prev.map(course =>
-                            course.id === courseId
-                                ? { ...course, bookedCount: updatedCourse.data.bookedCount || Math.max(0, course.bookedCount - 1) }
-                                : course
-                        ));
-                    }
-                } catch (refreshError) {
-                    console.error('刷新课程信息失败:', refreshError);
-                    // 尽管刷新失败，但取消预约已成功，所以不中断流程
-                }
+                // 重新加载课程表数据以更新预约人数
+                await loadWeekSchedule();
             } else {
                 // 取消预约失败，但API返回了响应
                 const errorMessage = cancelResponse?.message || '取消预约失败，请稍后重试';
@@ -478,11 +644,20 @@ const ScheduleTable = () => {
             // 完成加载状态
             setLoadingCourseId('');
         }
+    });
+
+    // 处理取消预约 - 使用防抖函数
+    const handleCancelBooking = (courseId: string, courseName: string) => {
+        debouncedCancelBooking(courseId, courseName);
     };
 
-    // 获取指定周几的课程
-    const getCoursesByWeekday = (weekday: string) => {
-        return courses.filter(course => course.weekday === weekday);
+    // 获取指定日期的课程
+    const getCoursesByDate = (date: Date): Course[] => {
+        const dateStr = formatDateYYYYMMDD(date);
+        const coursesForDate = weekSchedule[dateStr] || [];
+
+        // 过滤有效的课程（ID存在且不是"undefined"）
+        return coursesForDate.filter(course => course && course.id && course.id !== 'undefined');
     };
 
     // 获取用户对某课程的预约状态
@@ -553,7 +728,7 @@ const ScheduleTable = () => {
         const { top, height, minHeight } = calculateCoursePosition(course);
         const status = getUserBookingStatus(course.id);
         const isLoading = loadingCourseId === course.id;
-        const isBookable = canUserBookCourse();
+        const isBookable = canUserBookCourse(); // 所有课程都可预定（只要用户有权限）
         const isFull = course.bookedCount >= course.maxCapacity;
         const isBooked = status === 'confirmed';
         const isCanceled = status === 'canceled';
@@ -681,11 +856,12 @@ const ScheduleTable = () => {
                                     <span>已取消</span>
                                 </span>
                             )}
+
                             <span className={`inline-flex items-center text-xs font-medium ${isBooked
-                                    ? 'text-white bg-yellow-600 border border-yellow-300'
-                                    : isFull
-                                        ? 'text-red-600 bg-red-50'
-                                        : 'text-gray-500 bg-gray-50'
+                                ? 'text-white bg-yellow-600 border border-yellow-300'
+                                : isFull
+                                    ? 'text-red-600 bg-red-50'
+                                    : 'text-gray-500 bg-gray-50'
                                 } px-1.5 py-0.5 rounded-full`}>
                                 {isFull && !isBooked ? <FiAlertCircle className="mr-1 flex-shrink-0" /> : null}
                                 <span>{course.bookedCount || 0}/{course.maxCapacity}</span>
@@ -697,8 +873,31 @@ const ScheduleTable = () => {
         );
     };
 
+    // 处理上一周和下一周的导航
+    const goToPrevWeek = () => {
+        const prevWeek = new Date(selectedDate);
+        prevWeek.setDate(prevWeek.getDate() - 7);
+        setSelectedDate(prevWeek);
+        // 重置用于显示loading状态
+        setIsLoading(true);
+    };
+
+    const goToNextWeek = () => {
+        const nextWeek = new Date(selectedDate);
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        setSelectedDate(nextWeek);
+        // 重置用于显示loading状态
+        setIsLoading(true);
+    };
+
+    const goToCurrentWeek = () => {
+        setSelectedDate(new Date());
+        // 重置用于显示loading状态
+        setIsLoading(true);
+    };
+
     // 加载状态
-    if (loading && !refreshing) {
+    if (isLoading && !isProcessingRequest) {
         return (
             <div className="min-h-[700px] flex items-center justify-center">
                 <div className="text-center">
@@ -711,19 +910,50 @@ const ScheduleTable = () => {
 
     return (
         <div className="w-full px-0 py-6 overflow-visible">
-            <DisplayApiError error={error} />
+            <DisplayApiError error={apiError} />
 
             <div className="mb-6 px-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h1 className="text-2xl font-bold text-gray-900">课程表</h1>
-                <button
-                    onClick={handleRefresh}
-                    disabled={refreshing}
-                    className={`flex items-center px-4 py-2 bg-yellow-50 text-yellow-600 rounded-md hover:bg-yellow-100 transition-colors ${refreshing ? 'opacity-70 cursor-not-allowed' : ''
-                        }`}
-                >
-                    <FiRefreshCw className={`mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                    {refreshing ? '同步中...' : '同步最新数据'}
-                </button>
+
+                {/* 日期导航 */}
+                <div className="flex items-center space-x-2">
+                    <button
+                        onClick={goToPrevWeek}
+                        className="p-2 bg-gray-100 rounded-md hover:bg-gray-200 transition"
+                        title="上一周"
+                    >
+                        <FiChevronLeft />
+                    </button>
+
+                    <button
+                        onClick={goToCurrentWeek}
+                        disabled={isCurrentWeek}
+                        className={`px-3 py-1 ${isCurrentWeek
+                            ? 'bg-yellow-50 text-yellow-600 cursor-default'
+                            : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 cursor-pointer'
+                            } rounded-md transition text-sm font-medium`}
+                    >
+                        {isCurrentWeek ? '本周课程' : '回到本周'}
+                    </button>
+
+                    <button
+                        onClick={goToNextWeek}
+                        className="p-2 bg-gray-100 rounded-md hover:bg-gray-200 transition"
+                        title="下一周"
+                    >
+                        <FiChevronRight />
+                    </button>
+
+                    <button
+                        onClick={handleRefresh}
+                        disabled={isProcessingRequest}
+                        className={`flex items-center px-4 py-2 bg-yellow-50 text-yellow-600 rounded-md hover:bg-yellow-100 transition-colors ${isProcessingRequest ? 'opacity-70 cursor-not-allowed' : ''
+                            }`}
+                    >
+                        <FiRefreshCw className={`mr-2 ${isProcessingRequest ? 'animate-spin' : ''}`} />
+                        {isProcessingRequest ? '同步中...' : '同步最新数据'}
+                    </button>
+                </div>
             </div>
 
             {!isAuthenticated && (
@@ -778,17 +1008,18 @@ const ScheduleTable = () => {
                     <div className="schedule-table">
                         {/* 时间轴标签 */}
                         <div className="bg-white border-r border-gray-100">
-                            <div className="h-12 sticky top-0 z-10 bg-white"></div>
+                            <div className="h-20 sticky top-0 z-10 bg-white"></div>
                             <div className="relative schedule-column">
                                 {renderTimeLabels()}
                             </div>
                         </div>
 
                         {/* 周几列 */}
-                        {weekdays.map(weekday => (
-                            <div key={weekday} className="border-r border-gray-100 last:border-r-0">
-                                <div className="h-12 px-2 py-3 bg-yellow-50 text-center sticky top-0 z-10 border-b border-yellow-100">
-                                    <h3 className="text-sm font-medium text-yellow-800">{weekday}</h3>
+                        {weekDates.map((date, index) => (
+                            <div key={formatDateYYYYMMDD(date)} className="border-r border-gray-100 last:border-r-0">
+                                <div className={scheduleTableStyles.headerSticky}>
+                                    <h3 className="text-sm font-medium text-yellow-800">{weekdays[index]}</h3>
+                                    <p className="text-xs text-yellow-600 mt-1">{formatDate(formatDateYYYYMMDD(date))}</p>
                                 </div>
                                 <div className="relative schedule-column">
                                     {/* 顶部留白 */}
@@ -818,7 +1049,7 @@ const ScheduleTable = () => {
                                     <div className="h-[30px]" style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}></div>
 
                                     {/* 课程卡片 */}
-                                    {getCoursesByWeekday(weekday).map(course => renderCourseCard(course))}
+                                    {getCoursesByDate(date).map(course => renderCourseCard(course))}
                                 </div>
                             </div>
                         ))}

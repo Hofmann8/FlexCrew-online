@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import CourseForm from '@/components/CourseForm';
 import CourseCard from '@/components/CourseCard';
-import CourseAssignForm from '@/components/CourseAssignForm';
 import { Course, CourseFormData, User } from '@/types';
 import api from '@/services/api';
 
@@ -18,7 +17,6 @@ const AdminCourses = () => {
     // 模态框状态
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [currentCourse, setCurrentCourse] = useState<Course | null>(null);
 
     // 加载数据
@@ -94,34 +92,10 @@ const AdminCourses = () => {
         }
     };
 
-    // 分配课程归属
-    const handleAssignCourse = async (courseId: string, data: { danceType: string, leaderId: string | null }) => {
-        try {
-            const response = await api.adminCourses.assignCourse(courseId, data);
-            if (response.success && response.data) {
-                setCourses(prev =>
-                    prev.map(course =>
-                        course.id === courseId ? response.data : course
-                    )
-                );
-                setIsAssignModalOpen(false);
-                setCurrentCourse(null);
-            }
-        } catch (err) {
-            throw err;
-        }
-    };
-
     // 编辑课程
     const handleEditClick = (course: Course) => {
         setCurrentCourse(course);
         setIsEditModalOpen(true);
-    };
-
-    // 分配课程
-    const handleAssignClick = (course: Course) => {
-        setCurrentCourse(course);
-        setIsAssignModalOpen(true);
     };
 
     // 课程分类
@@ -173,7 +147,6 @@ const AdminCourses = () => {
                                         course={course}
                                         onEdit={handleEditClick}
                                         onDelete={handleDeleteCourse}
-                                        onAssign={handleAssignClick}
                                         isAdmin={true}
                                     />
                                 ))}
@@ -199,7 +172,6 @@ const AdminCourses = () => {
                                             course={course}
                                             onEdit={handleEditClick}
                                             onDelete={handleDeleteCourse}
-                                            onAssign={handleAssignClick}
                                             isAdmin={true}
                                         />
                                     ))}
@@ -218,7 +190,6 @@ const AdminCourses = () => {
                                         course={course}
                                         onEdit={handleEditClick}
                                         onDelete={handleDeleteCourse}
-                                        onAssign={handleAssignClick}
                                         isAdmin={true}
                                     />
                                 ))}
@@ -267,23 +238,6 @@ const AdminCourses = () => {
                             }}
                             isAdmin={true}
                             leaders={leaders}
-                        />
-                    </div>
-                </div>
-            )}
-
-            {/* 分配课程归属模态框 */}
-            {isAssignModalOpen && currentCourse && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                        <CourseAssignForm
-                            course={currentCourse}
-                            leaders={leaders}
-                            onSubmit={handleAssignCourse}
-                            onCancel={() => {
-                                setIsAssignModalOpen(false);
-                                setCurrentCourse(null);
-                            }}
                         />
                     </div>
                 </div>

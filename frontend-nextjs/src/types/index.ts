@@ -29,15 +29,16 @@ export interface Course {
     name: string;
     instructor: string;
     location: string;
-    weekday: string;
+    weekday: string;  // 由后端计算得出，保留兼容性
     timeSlot: string; // 格式: "HH:MM-HH:MM"，例如 "09:00-10:30"
     maxCapacity: number;
     bookedCount?: number; // 当前预订人数
     bookedBy: string[];
     description?: string;
     dance_type?: string;
-    danceType?: string; // 新增字段，与后端接口保持一致
-    leaderId?: string; // 新增字段，与后端接口保持一致
+    danceType?: string; // 与后端接口保持一致
+    leaderId?: string; // 与后端接口保持一致
+    courseDate?: string; // 新增字段，课程具体日期，格式：YYYY-MM-DD
 }
 
 // 创建/更新课程请求
@@ -45,7 +46,7 @@ export interface CourseFormData {
     name: string;
     instructor: string;
     location: string;
-    weekday: string;
+    courseDate: string; // 修改为使用具体日期，替代weekday
     timeSlot: string; // 格式: "HH:MM-HH:MM"
     maxCapacity: number;
     description: string;
@@ -169,6 +170,7 @@ export interface AuthContextType {
     register: (username: string, name: string, email: string, password: string) => Promise<RegisterResponse | null>;
     verifyEmail: (userId: number, code: string) => Promise<boolean>;
     resendVerification: (email: string) => Promise<boolean>;
+    refreshUser: () => Promise<boolean>;
 }
 
 // API 响应类型
