@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api';
 import { FiUser, FiCalendar, FiMapPin, FiClock } from 'react-icons/fi';
+import { Course } from '@/types';
 
 // 舞种类型的中文名称映射
 const danceTypeNames: Record<string, string> = {
@@ -27,7 +28,7 @@ export default function MyDanceTypePage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [danceMembers, setDanceMembers] = useState<any[]>([]);
-    const [recentCourses, setRecentCourses] = useState<any[]>([]);
+    const [recentCourses, setRecentCourses] = useState<Course[]>([]);
 
     useEffect(() => {
         const fetchDanceData = async () => {
@@ -51,11 +52,11 @@ export default function MyDanceTypePage() {
                 if (coursesResponse.success && coursesResponse.data) {
                     // 筛选属于当前舞种的课程
                     const typeCoursesAll = coursesResponse.data.filter(
-                        (course: any) => course.danceType === danceTypeStr
+                        (course: Course) => course.danceType === danceTypeStr
                     );
-                    
+
                     // 按照日期排序，获取最近的10节课
-                    const sortedCourses = typeCoursesAll.sort((a: any, b: any) => {
+                    const sortedCourses = typeCoursesAll.sort((a: Course, b: Course) => {
                         // 如果使用课程日期字段
                         if (a.courseDate && b.courseDate) {
                             return new Date(b.courseDate).getTime() - new Date(a.courseDate).getTime();
@@ -63,13 +64,13 @@ export default function MyDanceTypePage() {
                         // 如果使用星期几字段，则不做精确排序
                         return 0;
                     });
-                    
+
                     // 获取最近10节课
                     const recent = sortedCourses.slice(0, 10);
-                    
+
                     // 获取这些课程的详细信息，包括预约人员
                     const detailedCourses = await Promise.all(
-                        recent.map(async (course) => {
+                        recent.map(async (course: Course) => {
                             try {
                                 const detailResponse = await api.courses.getCourseById(course.id);
                                 return detailResponse.success && detailResponse.data ? detailResponse.data : course;
@@ -79,7 +80,7 @@ export default function MyDanceTypePage() {
                             }
                         })
                     );
-                    
+
                     setRecentCourses(detailedCourses);
                 }
             } catch (err) {
@@ -176,11 +177,10 @@ export default function MyDanceTypePage() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                                    member.role === 'leader' 
-                                                        ? 'bg-indigo-100 text-indigo-800' 
-                                                        : 'bg-green-100 text-green-800'
-                                                }`}>
+                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${member.role === 'leader'
+                                                    ? 'bg-indigo-100 text-indigo-800'
+                                                    : 'bg-green-100 text-green-800'
+                                                    }`}>
                                                     {member.role === 'leader' ? '领队' : '社员'}
                                                 </span>
                                             </td>
@@ -226,7 +226,7 @@ export default function MyDanceTypePage() {
                                             </span>
                                         </div>
                                     </div>
-                                    
+
                                     <div className="flex items-center text-sm text-gray-600 mb-3">
                                         <span className="mr-2">教师: {course.instructor}</span>
                                         <span>|</span>
@@ -234,7 +234,7 @@ export default function MyDanceTypePage() {
                                         <span>|</span>
                                         <span className="ml-2">日期: {course.courseDate || course.weekday}</span>
                                     </div>
-                                    
+
                                     <div className="bg-white rounded border border-gray-200 p-3">
                                         <h4 className="font-medium text-sm text-gray-700 mb-2">预约名单：</h4>
                                         {!course.bookedBy || course.bookedBy.length === 0 ? (

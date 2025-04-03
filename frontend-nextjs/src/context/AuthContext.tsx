@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { User, AuthContextType, RegisterResponse } from '@/types';
 import { authApi } from '@/services/api';
 
@@ -10,17 +10,77 @@ const AuthContext = createContext<AuthContextType>({
     isAuthenticated: false,
     isLoading: true,
     login: async () => false,
-    logout: () => { },
+    logout: async () => { },
     register: async () => null,
     verifyEmail: async () => false,
     resendVerification: async () => false,
     refreshUser: async () => false,
+    refreshToken: async () => false,
 });
 
 // 认证提供者组件
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    // 用于保存上一次token刷新的时间
+    const lastTokenRefreshRef = useRef<number>(0);
+    // 记录token刷新的定时器ID
+    const tokenRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // token刷新方法
+    const refreshToken = useCallback(async (): Promise<boolean> => {
+        try {
+            console.log('尝试刷新令牌...');
+            // 当前时间
+            const now = Date.now();
+            // 如果距离上次刷新不足5分钟，跳过
+            if (now - lastTokenRefreshRef.current < 5 * 60 * 1000) {
+                console.log('距离上次刷新不足5分钟，跳过');
+                return true;
+            }
+
+            const response = await authApi.refreshToken();
+
+            if (response && response.success && response.data && response.data.token) {
+                const newToken = response.data.token;
+                console.log('令牌刷新成功，保存新令牌');
+                localStorage.setItem('auth_token', newToken);
+                // 更新最近刷新时间
+                lastTokenRefreshRef.current = now;
+                return true;
+            } else {
+                console.error('令牌刷新失败:', response);
+                return false;
+            }
+        } catch (error) {
+            console.error('令牌刷新出错:', error);
+            return false;
+        }
+    }, []);
+
+    // 设置定时刷新token - 每12小时刷新一次
+    const setupTokenRefresh = useCallback(() => {
+        if (tokenRefreshTimerRef.current) {
+            clearInterval(tokenRefreshTimerRef.current);
+        }
+
+        // 12小时的毫秒数
+        const REFRESH_INTERVAL = 12 * 60 * 60 * 1000;
+
+        console.log('设置令牌自动刷新，间隔:', REFRESH_INTERVAL, 'ms');
+        tokenRefreshTimerRef.current = setInterval(async () => {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                await refreshToken();
+            } else {
+                // 如果没有token，取消定时器
+                if (tokenRefreshTimerRef.current) {
+                    clearInterval(tokenRefreshTimerRef.current);
+                    tokenRefreshTimerRef.current = null;
+                }
+            }
+        }, REFRESH_INTERVAL);
+    }, [refreshToken]);
 
     // 检查用户是否已经登录（从localStorage和API验证）
     useEffect(() => {
@@ -43,6 +103,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     setUser(null);
                     setIsLoading(false);
                     return;
+                }
+
+                // 已有token的情况下，才尝试自动刷新认证
+                try {
+                    console.log('尝试自动刷新认证...');
+                    const autoRefreshResponse = await authApi.autoRefresh();
+
+                    if (autoRefreshResponse && autoRefreshResponse.success && autoRefreshResponse.data && autoRefreshResponse.data.user) {
+                        // 自动认证成功，更新用户信息
+                        console.log('自动认证成功，更新用户信息');
+                        const userData = autoRefreshResponse.data.user;
+
+                        // 确保用户ID始终为字符串类型，防止JWT错误
+                        if (userData.id !== null && userData.id !== undefined) {
+                            userData.id = String(userData.id);
+                        }
+
+                        // 如果有token，也保存到localStorage
+                        if (autoRefreshResponse.data.token) {
+                            localStorage.setItem('auth_token', autoRefreshResponse.data.token);
+                        }
+
+                        // 数据兼容性处理：确保同时有dance_type和danceType字段
+                        if (userData.danceType && !userData.dance_type) {
+                            userData.dance_type = userData.danceType;
+                        } else if (userData.dance_type && !userData.danceType) {
+                            userData.danceType = userData.dance_type;
+                        }
+
+                        // 更新localStorage和状态
+                        localStorage.setItem('user_info', JSON.stringify(userData));
+                        setUser(userData);
+
+                        // 设置token自动刷新机制
+                        setupTokenRefresh();
+
+                        setIsLoading(false);
+                        return;
+                    }
+                } catch (autoRefreshError) {
+                    console.log('自动认证刷新失败，使用常规方式验证:', autoRefreshError);
+                    // 自动认证失败不要抛出错误，继续尝试传统方式
+                    // 如果错误是网络问题而不是认证问题，我们仍然可以使用本地存储的信息
+                    // 这样可以防止因为网络波动而导致用户被频繁登出
                 }
 
                 // 先从本地尝试恢复用户信息，减少API请求
@@ -82,19 +186,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         } else if (validUserData.dance_type && !validUserData.danceType) {
                             validUserData.danceType = validUserData.dance_type;
                         }
+
+                        // 确保用户ID始终为字符串类型，防止JWT错误
+                        if (validUserData.id !== null && validUserData.id !== undefined) {
+                            validUserData.id = String(validUserData.id);
+                        }
+
                         // 更新localStorage中的用户信息
                         localStorage.setItem('user_info', JSON.stringify(validUserData));
                         setUser(validUserData);
-                    } else {
-                        console.warn('API未返回有效用户数据，但保留本地用户信息');
-                        // 如果API未返回有效数据但我们有本地存储的用户信息，继续使用本地数据
-                        // 这样可以避免因API临时问题而导致用户被登出
-                        if (!userFromStorage) {
-                            console.error('无本地用户信息可用，清除认证状态');
-                            localStorage.removeItem('auth_token');
-                            localStorage.removeItem('user_info');
-                            setUser(null);
-                        }
+
+                        // 设置token自动刷新机制
+                        setupTokenRefresh();
+
+                        setIsLoading(false);
+                        return;
                     }
                 } catch (apiError) {
                     console.error('验证令牌API调用失败:', apiError);
@@ -105,6 +211,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         localStorage.removeItem('auth_token');
                         localStorage.removeItem('user_info');
                         setUser(null);
+                    } else {
+                        // 尝试刷新token，如果刷新失败，仍保留本地用户信息
+                        const refreshResult = await refreshToken();
+                        if (!refreshResult) {
+                            console.warn('令牌刷新失败，但保留本地用户信息');
+                        } else {
+                            console.log('令牌刷新成功，设置定时刷新');
+                            setupTokenRefresh();
+                        }
                     }
                 }
             } catch (error) {
@@ -121,12 +236,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         checkAuthStatus();
 
-        // 设置自动周期性验证，确保长时间使用时token有效
-        const intervalId = setInterval(checkAuthStatus, 30 * 60 * 1000); // 每30分钟检查一次
+        // 不再设置定时检查用户状态的计时器，改为依赖token刷新机制
 
         // 清理函数
-        return () => clearInterval(intervalId);
-    }, []);
+        return () => {
+            if (tokenRefreshTimerRef.current) {
+                clearInterval(tokenRefreshTimerRef.current);
+                tokenRefreshTimerRef.current = null;
+            }
+        };
+    }, [refreshToken, setupTokenRefresh]);
 
     // 登录方法
     const login = async (username: string, password: string): Promise<boolean | { userId: number, email: string, emailVerified: false }> => {
@@ -208,6 +327,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     }
 
                     if (apiUserData && apiUserData.id) {
+                        // 确保用户ID始终为字符串类型，防止JWT错误
+                        if (apiUserData.id !== null && apiUserData.id !== undefined) {
+                            apiUserData.id = String(apiUserData.id);
+                        }
+
                         userData = apiUserData;
                         console.log('成功获取用户信息');
                     } else {
@@ -231,6 +355,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     } else if (userData.dance_type && !userData.danceType) {
                         userData.danceType = userData.dance_type;
                     }
+
+                    // 确保用户ID始终为字符串类型，防止JWT错误
+                    if (userData.id !== null && userData.id !== undefined) {
+                        userData.id = String(userData.id);
+                    }
+
                     localStorage.setItem('user_info', JSON.stringify(userData));
                     setUser(userData);
                 } else {
@@ -241,11 +371,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         username: username,
                         name: username,
                         email: '',
-                        role: 'student' as const
+                        role: 'member' as const
                     };
                     localStorage.setItem('user_info', JSON.stringify(minimumUser));
                     setUser(minimumUser);
                 }
+
+                // 设置token刷新机制
+                setupTokenRefresh();
 
                 return true;
             } else {
@@ -261,11 +394,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     // 登出方法
-    const logout = () => {
+    const logout = async () => {
         console.log('执行登出');
+
+        try {
+            // 调用后端标准登出接口，清除服务器端的Cookie和会话
+            await authApi.logout();
+            console.log('后端登出成功');
+        } catch (error) {
+            console.error('后端登出失败:', error);
+            // 即使后端登出失败，也继续清除前端状态
+        }
+
+        // 无论后端是否成功，都清除本地状态
         localStorage.removeItem('auth_token');
         localStorage.removeItem('user_info');
         setUser(null);
+
+        // 清理token刷新定时器
+        if (tokenRefreshTimerRef.current) {
+            clearInterval(tokenRefreshTimerRef.current);
+            tokenRefreshTimerRef.current = null;
+        }
     };
 
     // 注册方法
@@ -383,6 +533,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 } else if (validUserData.dance_type && !validUserData.danceType) {
                     validUserData.danceType = validUserData.dance_type;
                 }
+
+                // 确保用户ID始终为字符串类型，防止JWT错误
+                if (validUserData.id !== null && validUserData.id !== undefined) {
+                    validUserData.id = String(validUserData.id);
+                }
+
                 // 更新localStorage中的用户信息
                 localStorage.setItem('user_info', JSON.stringify(validUserData));
                 setUser(validUserData);
@@ -409,6 +565,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         verifyEmail,
         resendVerification,
         refreshUser,
+        refreshToken,
     };
 
     return (

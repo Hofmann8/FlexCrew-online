@@ -224,7 +224,7 @@ const AdminCourses = () => {
                                 name: currentCourse.name,
                                 instructor: currentCourse.instructor,
                                 location: currentCourse.location,
-                                weekday: currentCourse.weekday,
+                                courseDate: currentCourse.courseDate || '',
                                 timeSlot: currentCourse.timeSlot,
                                 maxCapacity: currentCourse.maxCapacity,
                                 description: currentCourse.description || '',

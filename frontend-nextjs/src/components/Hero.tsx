@@ -81,7 +81,7 @@ const Hero = () => {
         const relativeTop = targetRect.top - containerRect.top + currentScrollTop;
 
         // 5. 其他元素的额外偏移量（如果有需要）
-        let additionalOffset = 0;
+        const additionalOffset = 0;
 
         // 最终滚动位置 = 相对位置 - 导航栏高度 + 额外偏移
         const scrollToPosition = relativeTop - navbarHeight + additionalOffset;

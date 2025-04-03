@@ -37,7 +37,7 @@ const LeaderLayout = ({ children }: { children: React.ReactNode }) => {
                 <div className="flex flex-col sm:flex-row sm:items-center mb-8">
                     <h1 className="text-3xl font-bold text-indigo-700">领队管理</h1>
                     <div className="mt-2 sm:mt-0 sm:ml-auto px-4 py-2 bg-indigo-50 rounded-full text-indigo-700 text-sm font-medium">
-                        舞种: <span className="capitalize font-semibold">{user.danceType || '未指定'}</span> | 领队: {user.name}
+                        舞种: <span className="capitalize font-semibold">{user?.danceType || '未指定'}</span> | 领队: {user?.name || ''}
                     </div>
                 </div>
 

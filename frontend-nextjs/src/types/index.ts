@@ -1,6 +1,7 @@
 // 用户相关类型
 export interface User {
-    id: string | number;
+    // 用户ID，为了与JWT兼容，始终应当转换为字符串类型
+    id: string;
     username: string;
     name: string;
     email: string;
@@ -171,6 +172,7 @@ export interface AuthContextType {
     verifyEmail: (userId: number, code: string) => Promise<boolean>;
     resendVerification: (email: string) => Promise<boolean>;
     refreshUser: () => Promise<boolean>;
+    refreshToken: () => Promise<boolean>;
 }
 
 // API 响应类型

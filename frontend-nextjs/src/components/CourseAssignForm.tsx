@@ -33,7 +33,7 @@ const CourseAssignForm: React.FC<CourseAssignFormProps> = ({
             // 如果选择了舞种，尝试找到该舞种的第一个领队
             const matchedLeader = leaders.find(leader => leader.dance_type === newDanceType);
             if (matchedLeader) {
-                setLeaderId(matchedLeader.id);
+                setLeaderId(String(matchedLeader.id));
             } else {
                 setLeaderId('');
             }

@@ -29,7 +29,7 @@ export default function AdminUsersPage() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [currentUserId, setCurrentUserId] = useState<string | number | null>(null);
 
     // 表单数据
     const [formData, setFormData] = useState<UserFormData>({
@@ -149,7 +149,7 @@ export default function AdminUsersPage() {
                 danceType: dance_type // 同时提供两种格式
             };
 
-            const response = await api.users.updateUserRole(currentUserId, apiData);
+            const response = await api.users.updateUserRole(String(currentUserId), apiData);
 
             if (response && response.success) {
                 toast.success('用户角色更新成功', { position: 'top-center' });
@@ -172,7 +172,7 @@ export default function AdminUsersPage() {
 
         try {
             console.log(`删除用户 ${currentUserId}`);
-            const response = await api.users.deleteUser(currentUserId);
+            const response = await api.users.deleteUser(String(currentUserId));
 
             if (response && response.success) {
                 toast.success('用户删除成功', { position: 'top-center' });
@@ -213,7 +213,7 @@ export default function AdminUsersPage() {
     };
 
     // 打开删除确认模态框
-    const openDeleteModal = (userId: string) => {
+    const openDeleteModal = (userId: string | number) => {
         setCurrentUserId(userId);
         setIsDeleteModalOpen(true);
     };

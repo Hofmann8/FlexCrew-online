@@ -153,7 +153,7 @@ const CourseForm: React.FC<CourseFormProps> = ({
             if (matchedLeader) {
                 setFormData(prev => ({
                     ...prev,
-                    leaderId: matchedLeader.id
+                    leaderId: String(matchedLeader.id)
                 }));
             }
         } else if (formData.danceType === 'public') {

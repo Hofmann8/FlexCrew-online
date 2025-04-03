@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:5000/api/:path*', // 替换为您后端API的实际URL
+        destination: 'http://124.222.106.161:5000/api/:path*', // 使用远程服务器地址
       },
     ];
   },

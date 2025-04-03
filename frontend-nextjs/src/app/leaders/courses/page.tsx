@@ -46,7 +46,7 @@ const LeaderCoursesPage = () => {
             const courseData = {
                 ...data,
                 danceType: user?.dance_type || '',
-                leaderId: user?.id || ''
+                leaderId: user?.id ? String(user.id) : ''
             };
 
             const response = await api.adminCourses.createCourse(courseData);
@@ -176,13 +176,13 @@ const LeaderCoursesPage = () => {
                                 name: currentCourse.name,
                                 instructor: currentCourse.instructor,
                                 location: currentCourse.location,
-                                weekday: currentCourse.weekday,
+                                courseDate: currentCourse.courseDate || '',
                                 timeSlot: currentCourse.timeSlot,
                                 maxCapacity: currentCourse.maxCapacity,
                                 description: currentCourse.description || '',
                                 // 领队不能修改课程归属
                                 danceType: user?.dance_type || '',
-                                leaderId: user?.id || ''
+                                leaderId: user?.id ? String(user.id) : ''
                             }}
                             onSubmit={handleUpdateCourse}
                             onCancel={() => {

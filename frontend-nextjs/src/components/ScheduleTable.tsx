@@ -484,7 +484,7 @@ const ScheduleTable = () => {
     const refreshSingleCourse = async (courseId: string) => {
         // 确保courseId是有效的字符串，不是undefined或"undefined"
         if (!isAuthenticated || !courseId || courseId === 'undefined') {
-            console.warn('无法刷新预约状态：无效的课程ID', courseId);
+            console.warn('无法刷新预约状态：无效的课程ID或用户未登录', courseId);
             return;
         }
 
@@ -494,6 +494,17 @@ const ScheduleTable = () => {
             // 使用getCourseBookingStatus获取课程预约状态
             const status = await bookingApi.getCourseBookingStatus(courseId);
 
+            // 处理可能的401未授权响应
+            if (status && typeof status === 'object' && (status.status === 401 || status.status === '401')) {
+                console.log(`获取课程ID=${courseId}的预订状态未授权，用户可能需要登录`);
+                // 设置为默认的未预约状态而不是抛出错误
+                setBookingStatus(prev => ({
+                    ...prev,
+                    [courseId]: 'not_booked'
+                }));
+                return;
+            }
+
             // 更新状态
             setBookingStatus(prev => ({
                 ...prev,
@@ -501,6 +512,11 @@ const ScheduleTable = () => {
             }));
         } catch (error) {
             console.error(`刷新课程ID=${courseId}的预约状态失败:`, error);
+            // 设置为默认的未预约状态
+            setBookingStatus(prev => ({
+                ...prev,
+                [courseId]: 'not_booked'
+            }));
         }
     };
 
@@ -729,7 +745,7 @@ const ScheduleTable = () => {
         const status = getUserBookingStatus(course.id);
         const isLoading = loadingCourseId === course.id;
         const isBookable = canUserBookCourse(); // 所有课程都可预定（只要用户有权限）
-        const isFull = course.bookedCount >= course.maxCapacity;
+        const isFull = (course.bookedCount || 0) >= course.maxCapacity;
         const isBooked = status === 'confirmed';
         const isCanceled = status === 'canceled';
 

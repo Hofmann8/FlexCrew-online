@@ -13,9 +13,9 @@ const getAuthToken = () => {
 const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
     const token = getAuthToken();
 
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...options.headers as Record<string, string>,
     };
 
     if (token) {
@@ -25,6 +25,7 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
     const config = {
         ...options,
         headers,
+        credentials: 'include',
     };
 
     try {
@@ -40,21 +41,106 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
             console.log('getCurrentUser响应状态:', response.status);
         }
 
-        // 处理401错误（未授权），可能是token过期
+        // 特殊处理401错误（未授权），可能是token过期
         if (response.status === 401) {
-            // 如果在浏览器环境中，清除本地存储的认证信息
-            if (typeof window !== 'undefined') {
-                console.warn('认证失败，清除令牌和用户信息');
-                localStorage.removeItem('auth_token');
-                localStorage.removeItem('user_info');
+            // 判断是否是关键认证请求
+            const isCriticalAuthRequest =
+                isCurrentUserRequest ||
+                endpoint.startsWith('/auth/') ||
+                endpoint === '/users/profile';
 
-                // 避免在用户手动登出时重定向
-                if (endpoint !== '/auth/logout') {
-                    // 可以添加重定向到登录页面的逻辑
-                    window.location.href = '/auth/login';
+            // 如果是刷新token的请求，不要尝试再次刷新，避免无限循环
+            const isRefreshTokenRequest = endpoint === '/auth/refresh-token';
+
+            // 如果是自动刷新认证请求，不要清除认证状态，避免首次加载时的不必要错误
+            const isAutoRefreshRequest = endpoint === '/auth/auto-refresh';
+
+            // 课程预订状态请求不应该导致登出
+            const isBookingStatusRequest = endpoint.includes('/booking-status/');
+
+            // 对于非刷新token和自动刷新请求的401错误，尝试刷新token
+            if (!isRefreshTokenRequest && !isAutoRefreshRequest && !isBookingStatusRequest) {
+                console.log('收到401错误，尝试刷新token...');
+                try {
+                    // 直接调用刷新token的API
+                    const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include',
+                    });
+
+                    // 如果刷新成功
+                    if (refreshResponse.ok) {
+                        const refreshData = await refreshResponse.json();
+                        if (refreshData.success && refreshData.data && refreshData.data.token) {
+                            // 保存新token
+                            const newToken = refreshData.data.token;
+                            console.log('令牌刷新成功，使用新令牌重试请求');
+                            localStorage.setItem('auth_token', newToken);
+
+                            // 如果响应中有用户信息，也需要处理
+                            if (refreshData.data.user) {
+                                const userData = refreshData.data.user;
+                                // 确保用户ID是字符串类型
+                                if (userData.id !== null && userData.id !== undefined) {
+                                    userData.id = String(userData.id);
+                                }
+                                localStorage.setItem('user_info', JSON.stringify(userData));
+                            }
+
+                            // 使用新token重试原始请求
+                            const newHeaders = {
+                                ...headers,
+                                'Authorization': `Bearer ${newToken}`
+                            };
+
+                            const newConfig = {
+                                ...options,
+                                headers: newHeaders,
+                                credentials: 'include',
+                            };
+
+                            // 重试请求
+                            const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, newConfig);
+
+                            // 如果重试成功，返回结果
+                            if (retryResponse.ok) {
+                                try {
+                                    return await retryResponse.json();
+                                } catch (e) {
+                                    return { success: true };
+                                }
+                            }
+                        }
+                    }
+                } catch (refreshError) {
+                    console.error('刷新令牌失败:', refreshError);
                 }
             }
-            throw new Error('认证失败，请重新登录');
+
+            // 只有关键认证请求失败，且token刷新失败，且不是自动刷新请求，才清除认证状态并重定向
+            if (isCriticalAuthRequest && !isBookingStatusRequest && !isAutoRefreshRequest) {
+                // 如果在浏览器环境中，清除本地存储的认证信息
+                if (typeof window !== 'undefined') {
+                    console.warn('关键认证请求失败，清除令牌和用户信息');
+                    localStorage.removeItem('auth_token');
+                    localStorage.removeItem('user_info');
+
+                    // 避免在用户手动登出时重定向
+                    if (endpoint !== '/auth/logout') {
+                        // 可以添加重定向到登录页面的逻辑
+                        window.location.href = '/auth/login';
+                    }
+                }
+                throw new Error('认证失败，请重新登录');
+            } else {
+                console.warn(`非关键请求的401错误: ${endpoint}，不清除认证状态`);
+                // 对于非关键请求，仅返回错误，不清除认证状态
+                return { success: false, message: '请求未授权', status: 401 };
+            }
         }
 
         // 克隆响应用于日志查看（因为响应体只能被读取一次）
@@ -136,6 +222,30 @@ export const authApi = {
     // 获取当前用户信息
     getCurrentUser: async () => {
         return apiRequest('/users/me');
+    },
+
+    // 刷新token
+    refreshToken: async () => {
+        console.log('调用刷新token API');
+        return apiRequest('/auth/refresh-token', {
+            method: 'POST',
+        });
+    },
+
+    // 自动刷新认证
+    autoRefresh: async () => {
+        console.log('调用自动刷新认证API');
+        return apiRequest('/auth/auto-refresh', {
+            method: 'GET',
+        });
+    },
+
+    // 标准登出流程
+    logout: async () => {
+        console.log('调用标准登出API');
+        return apiRequest('/auth/logout', {
+            method: 'POST',
+        });
     }
 };
 
@@ -178,7 +288,7 @@ export const courseApi = {
     // 获取所有课程的预订状态
     getAllCoursesBookingStatus: async (courseIds: string[]) => {
         // 可以通过批量API或循环单个API实现
-        const statusPromises = courseIds.map(id => this.getCourseBookingStatus(id));
+        const statusPromises = courseIds.map(id => courseApi.getCourseBookingStatus(id));
         const statuses = await Promise.all(statusPromises);
 
         // 返回一个以courseId为键，status为值的对象

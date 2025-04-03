@@ -1,13 +1,19 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams as useSearchParamsImport } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 
-const VerifyEmailPage = () => {
+// 创建一个单独的包含useSearchParams的客户端组件
+const ClientSearchParamsWrapper = ({ children }: { children: (searchParams: URLSearchParams) => React.ReactNode }) => {
+    const searchParams = useSearchParamsImport();
+    return <>{children(searchParams)}</>;
+};
+
+// 创建一个专门处理url参数的组件
+const VerifyEmailContent = () => {
     const router = useRouter();
-    const searchParams = useSearchParams();
     const { verifyEmail, resendVerification, isLoading } = useAuth();
 
     const [userId, setUserId] = useState<number | null>(null);
@@ -17,25 +23,6 @@ const VerifyEmailPage = () => {
     const [success, setSuccess] = useState('');
     const [countdown, setCountdown] = useState(600); // 10分钟倒计时
     const [canResend, setCanResend] = useState(false);
-
-    useEffect(() => {
-        // 从URL参数获取用户ID和邮箱
-        const userIdParam = searchParams.get('userId');
-        const emailParam = searchParams.get('email');
-
-        if (userIdParam) {
-            setUserId(parseInt(userIdParam, 10));
-        }
-
-        if (emailParam) {
-            setEmail(emailParam);
-        }
-
-        // 如果没有必要的参数，重定向到注册页面
-        if (!userIdParam || !emailParam) {
-            router.push('/auth/register');
-        }
-    }, [searchParams, router]);
 
     useEffect(() => {
         // 倒计时逻辑
@@ -82,8 +69,8 @@ const VerifyEmailPage = () => {
             } else {
                 setError('验证码错误或已过期');
             }
-        } catch (error: any) {
-            setError(error.message || '验证过程中发生错误');
+        } catch (error) {
+            setError(error instanceof Error ? error.message : '验证过程中发生错误');
         }
     };
 
@@ -102,92 +89,137 @@ const VerifyEmailPage = () => {
             } else {
                 setError('重新发送验证码失败，请稍后再试');
             }
-        } catch (error: any) {
-            setError(error.message || '重新发送验证码过程中发生错误');
+        } catch (error) {
+            setError(error instanceof Error ? error.message : '重新发送验证码过程中发生错误');
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-black bg-opacity-95 px-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
-                <div className="bg-yellow-500 p-6">
-                    <h2 className="text-center text-3xl font-bold text-black">
-                        验证您的邮箱
-                    </h2>
-                    <p className="mt-2 text-center text-black">
-                        请输入发送到您邮箱的验证码
-                    </p>
-                </div>
+        <ClientSearchParamsWrapper>
+            {(searchParams) => {
+                // 使用useEffect处理URL参数，避免在渲染过程中更新状态
+                useEffect(() => {
+                    // 从URL参数获取用户ID和邮箱
+                    const userIdParam = searchParams.get('userId');
+                    const emailParam = searchParams.get('email');
 
-                <div className="p-8">
-                    {error && (
-                        <div className="mb-4 bg-red-100 text-red-700 p-3 rounded">
-                            {error}
-                        </div>
-                    )}
+                    if (userIdParam) {
+                        setUserId(parseInt(userIdParam, 10));
+                    }
 
-                    {success && (
-                        <div className="mb-4 bg-green-100 text-green-700 p-3 rounded">
-                            {success}
-                        </div>
-                    )}
+                    if (emailParam) {
+                        setEmail(emailParam);
+                    }
 
-                    <div className="mb-4 bg-blue-50 p-4 rounded-lg">
-                        <p className="text-blue-800">
-                            验证码已发送至：<span className="font-semibold">{email}</span>
-                        </p>
-                        <p className="mt-2 text-sm text-blue-600">
-                            请查收邮件并在下方输入验证码。验证码有效期为10分钟。
-                        </p>
-                    </div>
+                    // 如果没有必要的参数，重定向到注册页面
+                    if (!userIdParam || !emailParam) {
+                        router.push('/auth/register');
+                    }
+                }, [searchParams, router]);
 
-                    <form onSubmit={handleSubmit}>
-                        <div className="mb-6">
-                            <label htmlFor="verificationCode" className="block text-gray-700 font-medium mb-2">
-                                验证码
-                            </label>
-                            <input
-                                type="text"
-                                id="verificationCode"
-                                value={verificationCode}
-                                onChange={(e) => setVerificationCode(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                                placeholder="请输入6位数验证码"
-                                required
-                            />
-                            <div className="mt-2 flex justify-between items-center">
-                                <span className="text-sm text-gray-500">
-                                    验证码有效期: {formatTime(countdown)}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={handleResendCode}
-                                    disabled={!canResend || isLoading}
-                                    className={`text-sm ${canResend ? 'text-yellow-600 hover:text-yellow-800' : 'text-gray-400'}`}
-                                >
-                                    {canResend ? '重新发送验证码' : '等待倒计时结束'}
-                                </button>
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-black bg-opacity-95 px-4">
+                        <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
+                            <div className="bg-yellow-500 p-6">
+                                <h2 className="text-center text-3xl font-bold text-black">
+                                    验证您的邮箱
+                                </h2>
+                                <p className="mt-2 text-center text-black">
+                                    请输入发送到您邮箱的验证码
+                                </p>
+                            </div>
+
+                            <div className="p-8">
+                                {error && (
+                                    <div className="mb-4 bg-red-100 text-red-700 p-3 rounded">
+                                        {error}
+                                    </div>
+                                )}
+
+                                {success && (
+                                    <div className="mb-4 bg-green-100 text-green-700 p-3 rounded">
+                                        {success}
+                                    </div>
+                                )}
+
+                                <div className="mb-4 bg-blue-50 p-4 rounded-lg">
+                                    <p className="text-blue-800">
+                                        验证码已发送至：<span className="font-semibold">{email}</span>
+                                    </p>
+                                    <p className="mt-2 text-sm text-blue-600">
+                                        请查收邮件并在下方输入验证码。验证码有效期为10分钟。
+                                    </p>
+                                </div>
+
+                                <form onSubmit={handleSubmit}>
+                                    <div className="mb-6">
+                                        <label htmlFor="verificationCode" className="block text-gray-700 font-medium mb-2">
+                                            验证码
+                                        </label>
+                                        <input
+                                            type="text"
+                                            id="verificationCode"
+                                            value={verificationCode}
+                                            onChange={(e) => setVerificationCode(e.target.value)}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                            placeholder="请输入6位数验证码"
+                                            required
+                                        />
+                                        <div className="mt-2 flex justify-between items-center">
+                                            <span className="text-sm text-gray-500">
+                                                验证码有效期: {formatTime(countdown)}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={handleResendCode}
+                                                disabled={!canResend || isLoading}
+                                                className={`text-sm ${canResend ? 'text-yellow-600 hover:text-yellow-800' : 'text-gray-400'}`}
+                                            >
+                                                {canResend ? '重新发送验证码' : '等待倒计时结束'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        disabled={isLoading}
+                                        className={`w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-4 rounded-md transition-colors ${isLoading ? 'opacity-70 cursor-not-allowed' : ''
+                                            }`}
+                                    >
+                                        {isLoading ? '验证中...' : '验证邮箱'}
+                                    </button>
+                                </form>
+
+                                <div className="mt-6 text-center">
+                                    <Link href="/auth/login" className="text-yellow-600 hover:text-yellow-800 font-medium">
+                                        返回登录
+                                    </Link>
+                                </div>
                             </div>
                         </div>
-
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className={`w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-4 rounded-md transition-colors ${isLoading ? 'opacity-70 cursor-not-allowed' : ''
-                                }`}
-                        >
-                            {isLoading ? '验证中...' : '验证邮箱'}
-                        </button>
-                    </form>
-
-                    <div className="mt-6 text-center">
-                        <Link href="/auth/login" className="text-yellow-600 hover:text-yellow-800 font-medium">
-                            返回登录
-                        </Link>
                     </div>
-                </div>
-            </div>
+                );
+            }}
+        </ClientSearchParamsWrapper>
+    );
+};
+
+// 加载中的占位显示
+const LoadingFallback = () => (
+    <div className="min-h-screen flex items-center justify-center bg-black bg-opacity-95 px-4">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-500 mx-auto"></div>
+            <p className="mt-4 text-gray-600">正在加载验证页面...</p>
         </div>
+    </div>
+);
+
+// 主页面组件
+const VerifyEmailPage = () => {
+    return (
+        <Suspense fallback={<LoadingFallback />}>
+            <VerifyEmailContent />
+        </Suspense>
     );
 };
 
