@@ -13,6 +13,206 @@
 DATABASE_URL=sqlite:///streetdance.db
 ```
 
+## 最近更新 (2025-04-05)
+
+### 代码优化与安全性提升
+
+1. **代码整合与简化**：
+   - 合并了`run.py`和`run_fixed.py`，保留所有增强的认证功能，减少冗余代码
+   - 移除了敏感信息的控制台输出，提高了安全性
+   - 简化了调试工具的日志输出，只保留必要的信息
+
+2. **敏感信息保护**：
+   - 减少了数据库配置信息、令牌内容等敏感数据的控制台输出
+   - 优化了认证调试工具，避免了令牌完整内容的显示
+   - 提高了日志记录的安全性
+
+3. **代码可维护性提升**：
+   - 规范化了认证相关函数的命名和行为
+   - 提高了代码注释的质量，使维护更加容易
+   - 确保JWT处理过程的一致性，避免数据类型错误
+
+## 最近更新 (2025-04-04)
+
+### 修复JWT令牌问题
+
+修复了前端切换页面后导致JWT令牌验证失败的关键问题，主要修复内容：
+
+1. **修复JWT令牌格式问题**：
+   - 修复了令牌中`sub`（subject）字段的数据类型问题，确保用户ID始终以字符串形式存储
+   - 解决了出现的`Subject must be a string`错误，提高了令牌验证的可靠性
+
+2. **增强错误调试**：
+   - 添加了详细的JWT验证日志输出
+   - 优化了错误处理流程，便于诊断类似问题
+
+3. **认证机制健壮性增强**：
+   - 规范化了所有JWT令牌的创建过程
+   - 改进了令牌验证和刷新机制，使其更加可靠
+
+### 修复认证问题
+
+修复了前端切换页面后后端不认识token的问题，具体改进包括：
+
+1. **增强认证机制**：
+   - 修复了CORS配置，现在支持使用凭据进行跨域请求
+   - 所有API请求均支持cookie中的JWT认证
+   - 增加了请求级别的token刷新机制，进一步提高可靠性
+
+2. **JWT配置优化**：
+   - 延长了token有效期至1天，减少用户重新登录频率
+   - 增加了无感刷新机制，自动维护登录状态
+   - 改进了auto-refresh端点，可以从多种来源验证身份
+
+3. **调试工具**：
+   - 增强了认证调试功能，便于排查问题
+   - 提供了多种令牌修复工具，可以在失效时快速恢复
+
+#### 前端集成建议
+
+为了充分利用这些改进，建议前端开发者：
+
+1. 确保所有请求包含凭据：
+   ```javascript
+   fetch('/api/endpoint', {
+     credentials: 'include'
+   });
+   ```
+
+2. 在应用初始化时调用auto-refresh接口：
+   ```javascript
+   async function refreshAuth() {
+     try {
+       const response = await fetch('/api/auth/auto-refresh', {
+         credentials: 'include'
+       });
+       if (response.ok) {
+         const data = await response.json();
+         // 更新本地状态
+       }
+     } catch (error) {
+       console.error('刷新认证失败:', error);
+     }
+   }
+   ```
+
+3. 在路由变化时保持认证状态：
+   ```javascript
+   // React Router示例
+   router.beforeEach(async (to, from, next) => {
+     await refreshAuth();
+     next();
+   });
+   ```
+
+## 最近更新 (2025-04-03)
+
+### 认证机制增强
+
+为解决在切换页面时频繁要求重新登录的问题，系统进行了以下增强：
+
+1. **双重认证机制**：系统现在同时支持 Header 认证和 Cookie 认证，大大提高了认证的可靠性
+2. **Cookie 存储 Token**：登录和刷新 Token 时，系统会同时将 Token 存储在 Cookie 中
+3. **自动刷新机制**：新增了自动刷新接口，可用于保持会话活跃
+4. **登出接口增强**：登出时会同时清除 Cookie 中的 Token
+
+#### 新增和增强的接口
+
+1. **自动刷新令牌**
+   - **URL**: `/api/auth/auto-refresh`
+   - **方法**: `GET`
+   - **说明**: 如果用户已登录，此接口会自动刷新令牌并返回最新的用户信息
+   - **返回示例**:
+     ```json
+     {
+       "success": true,
+       "data": {
+         "user": {
+           "id": 1,
+           "username": "example",
+           "name": "示例用户",
+           "email": "user@example.com",
+           "role": "member",
+           "danceType": "breaking"
+         }
+       },
+       "message": "令牌已刷新"
+     }
+     ```
+
+2. **用户登出**
+   - **URL**: `/api/auth/logout`
+   - **方法**: `POST`
+   - **说明**: 清除用户的登录状态，包括 Cookie 中的令牌
+   - **返回示例**:
+     ```json
+     {
+       "success": true,
+       "message": "登出成功"
+     }
+     ```
+
+### 前端集成建议
+
+1. **页面加载自动刷新**：
+   ```javascript
+   // 在每个页面加载时调用此函数
+   async function checkAndRefreshAuth() {
+     try {
+       const response = await fetch('/api/auth/auto-refresh', {
+         credentials: 'include' // 重要！确保发送和接收Cookie
+       });
+       
+       if (response.ok) {
+         const data = await response.json();
+         if (data.success && data.data.user) {
+           // 更新本地用户信息
+           updateUserState(data.data.user);
+         }
+       }
+     } catch (error) {
+       console.error('自动刷新失败:', error);
+     }
+   }
+   
+   // 在页面加载时执行
+   document.addEventListener('DOMContentLoaded', checkAndRefreshAuth);
+   ```
+
+2. **API请求配置**：
+   ```javascript
+   // 配置所有API请求
+   async function apiRequest(url, options = {}) {
+     // 确保每个请求都包含credentials
+     const requestOptions = {
+       ...options,
+       credentials: 'include',
+       headers: {
+         ...options.headers,
+         'Content-Type': 'application/json'
+       }
+     };
+     
+     // 发送请求
+     return fetch(url, requestOptions);
+   }
+   ```
+
+3. **登出处理**：
+   ```javascript
+   async function logout() {
+     try {
+       await apiRequest('/api/auth/logout', { method: 'POST' });
+       // 清除本地存储的用户信息
+       clearUserState();
+       // 重定向到登录页
+       window.location.href = '/login';
+     } catch (error) {
+       console.error('登出失败:', error);
+     }
+   }
+   ```
+
 ## 最近更新
 
 **2025-03-28 更新**
@@ -1028,3 +1228,48 @@ flask run
     "message": "用户删除成功"
   }
   ```
+
+## 最近更新 (2025-03-28)
+
+### Token刷新机制
+
+为解决在服务器环境下令牌频繁过期的问题，系统新增了以下功能：
+
+1. **令牌过期时间调整**：所有环境下默认令牌有效期统一为1天
+2. **新增令牌刷新接口**：客户端可以在令牌即将过期时调用刷新接口
+
+#### 令牌刷新API
+
+- **URL**: `/api/auth/refresh-token`
+- **方法**: `POST`
+- **权限**: 需要有效的JWT令牌
+- **认证**: 需要JWT令牌（`Bearer Token`）
+- **功能描述**: 使用有效的JWT令牌获取新的JWT令牌
+- **返回格式**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    },
+    "message": "令牌刷新成功"
+  }
+  ```
+
+### 环境配置说明
+
+系统现在支持两种启动方式：
+
+1. **开发环境启动**：
+   ```bash
+   python run.py
+   ```
+
+2. **生产环境启动**：
+   ```bash
+   python run_production.py
+   ```
+
+两种环境的主要区别：
+- 开发环境：启用调试模式，JWT令牌有效期为1天
+- 生产环境：禁用调试模式，JWT令牌有效期为1天（已与开发环境统一）
