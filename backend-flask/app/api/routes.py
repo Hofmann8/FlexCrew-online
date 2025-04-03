@@ -7,6 +7,7 @@ from app import db
 from sqlalchemy.exc import IntegrityError
 import os
 from datetime import datetime, date, timedelta
+import sys
 
 @api_bp.route('/info')
 def info():
@@ -66,43 +67,137 @@ def get_user_bookings():
 @api_bp.route('/users/booking-status/<int:course_id>', methods=['GET'])
 @jwt_required()
 def get_booking_status(course_id):
-    """获取当前用户对特定课程的预订状态"""
-    current_user_id = get_jwt_identity()
-    
-    # 检查课程是否存在
-    course = Course.query.get(course_id)
-    if not course:
-        return jsonify({
-            'success': False,
-            'message': '课程不存在'
-        }), 404
-    
-    # 查询预订记录
-    booking = Booking.query.filter_by(
-        user_id=current_user_id,
-        course_id=course_id
-    ).first()
-    
-    if not booking:
-        return jsonify({
-            'success': True,
-            'data': {
-                'courseId': course_id,
-                'status': 'not_booked',  # 未预订
-                'courseName': course.name
-            }
-        }), 200
-    
-    return jsonify({
-        'success': True,
-        'data': {
+    """查询用户对特定课程的预订状态"""
+    try:
+        # 增强调试信息
+        print("\n===== 获取预订状态调试信息 =====", file=sys.stderr)
+        print(f"请求路径: {request.path}", file=sys.stderr)
+        print(f"请求方法: {request.method}", file=sys.stderr)
+        
+        # 详细的请求头部信息
+        print("请求头部详情:", file=sys.stderr)
+        for key, value in request.headers.items():
+            # 截断过长的值
+            if key.lower() == 'authorization' and value:
+                print(f"  {key}: {value[:15]}...(已截断)", file=sys.stderr)
+            else:
+                print(f"  {key}: {value}", file=sys.stderr)
+                
+        # 详细的Cookie信息
+        print("Cookie详情:", file=sys.stderr)
+        for key, value in request.cookies.items():
+            if key == 'access_token_cookie' and value:
+                print(f"  {key}: {value[:15]}...(已截断)", file=sys.stderr)
+            else:
+                print(f"  {key}: {value}", file=sys.stderr)
+        
+        # JWT验证详情
+        from flask_jwt_extended import get_jwt
+        try:
+            jwt_data = get_jwt()
+            print("JWT数据:", file=sys.stderr)
+            print(f"  用户ID: {get_jwt_identity()}", file=sys.stderr)
+            print(f"  JWT发布时间: {jwt_data.get('iat')}", file=sys.stderr)
+            print(f"  JWT过期时间: {jwt_data.get('exp')}", file=sys.stderr)
+            print(f"  JWT类型: {jwt_data.get('type')}", file=sys.stderr)
+        except Exception as jwt_err:
+            print(f"获取JWT数据失败: {str(jwt_err)}", file=sys.stderr)
+        
+        current_user_id = get_jwt_identity()
+        print(f"JWT用户身份: {current_user_id}", file=sys.stderr)
+        
+        # 尝试从多种来源获取用户身份
+        auth_header = request.headers.get('Authorization', '')
+        if not current_user_id and auth_header.startswith('Bearer '):
+            try:
+                from flask_jwt_extended import decode_token
+                token = auth_header[7:]  # 去掉'Bearer '前缀
+                decoded = decode_token(token)
+                alt_user_id = decoded.get('sub')
+                print(f"从Authorization头解析用户ID: {alt_user_id}", file=sys.stderr)
+                if not current_user_id:
+                    current_user_id = alt_user_id
+                    print(f"使用从Authorization头获取的用户ID: {current_user_id}", file=sys.stderr)
+            except Exception as e:
+                print(f"解析Authorization头失败: {str(e)}", file=sys.stderr)
+                
+        # 检查Cookie中的令牌
+        if not current_user_id:
+            jwt_cookie = request.cookies.get('access_token_cookie')
+            if jwt_cookie:
+                try:
+                    from flask_jwt_extended import decode_token
+                    decoded = decode_token(jwt_cookie)
+                    cookie_user_id = decoded.get('sub')
+                    print(f"从Cookie解析用户ID: {cookie_user_id}", file=sys.stderr)
+                    current_user_id = cookie_user_id
+                    print(f"使用从Cookie获取的用户ID: {current_user_id}", file=sys.stderr)
+                except Exception as e:
+                    print(f"解析Cookie令牌失败: {str(e)}", file=sys.stderr)
+        
+        user = User.query.get(current_user_id)
+        
+        if not user:
+            print(f"用户不存在，ID: {current_user_id}", file=sys.stderr)
+            print("============================\n", file=sys.stderr)
+            return jsonify({
+                'success': False,
+                'message': '用户不存在'
+            }), 404
+            
+        # 查询用户对该课程的预订记录
+        booking = Booking.query.filter_by(
+            user_id=current_user_id,
+            course_id=course_id
+        ).first()
+        
+        course = Course.query.get(course_id)
+        if not course:
+            print(f"课程不存在，ID: {course_id}", file=sys.stderr)
+            print("============================\n", file=sys.stderr)
+            return jsonify({
+                'success': False,
+                'message': '课程不存在'
+            }), 404
+            
+        # 如果未找到预订记录，返回未预订状态
+        if not booking:
+            print(f"未找到预订记录，用户ID: {current_user_id}, 课程ID: {course_id}", file=sys.stderr)
+            print("============================\n", file=sys.stderr)
+            return jsonify({
+                'success': True,
+                'data': {
+                    'courseId': course_id,
+                    'status': 'not_booked',
+                    'courseName': course.name
+                }
+            }), 200
+            
+        # 构建响应数据
+        response_data = {
             'courseId': course_id,
-            'status': booking.status,  # confirmed 或 canceled
+            'status': booking.status,
             'bookingId': booking.id,
             'courseName': course.name,
-            'bookingTime': booking.created_at.isoformat() + 'Z'
+            'bookingTime': booking.created_at.isoformat()
         }
-    }), 200
+        
+        print(f"找到预订记录: {response_data}", file=sys.stderr)
+        print("============================\n", file=sys.stderr)
+        return jsonify({
+            'success': True,
+            'data': response_data
+        }), 200
+        
+    except Exception as e:
+        print(f"获取预订状态出错: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        print("============================\n", file=sys.stderr)
+        return jsonify({
+            'success': False,
+            'message': f'获取预订状态失败: {str(e)}'
+        }), 500
 
 # 课程相关接口
 @api_bp.route('/courses', methods=['GET'])

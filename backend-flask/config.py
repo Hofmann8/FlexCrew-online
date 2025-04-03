@@ -18,7 +18,7 @@ class Config:
     
     # JWT配置
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'default-jwt-secret-key')
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)  # 访问令牌过期时间
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=1)  # 将访问令牌过期时间从1小时改为1天
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)  # 刷新令牌过期时间
 
 class DevelopmentConfig(Config):
