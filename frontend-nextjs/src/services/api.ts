@@ -25,7 +25,7 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
     const config = {
         ...options,
         headers,
-        credentials: 'include',
+        credentials: 'include' as RequestCredentials,
     };
 
     try {
@@ -69,7 +69,7 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
                             'Authorization': `Bearer ${token}`,
                             'Content-Type': 'application/json'
                         },
-                        credentials: 'include',
+                        credentials: 'include' as RequestCredentials,
                     });
 
                     // 如果刷新成功
@@ -100,7 +100,7 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
                             const newConfig = {
                                 ...options,
                                 headers: newHeaders,
-                                credentials: 'include',
+                                credentials: 'include' as RequestCredentials,
                             };
 
                             // 重试请求

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CourseFormData, WEEKDAYS, DANCE_TYPES, User } from '@/types';
+import { CourseFormData, WEEKDAYS, User } from '@/types';
+import { leaderApi } from '@/services/api';
 
 interface CourseFormProps {
     initialData?: CourseFormData;
@@ -60,6 +61,54 @@ const CourseForm: React.FC<CourseFormProps> = ({
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [timeError, setTimeError] = useState<string | null>(null);
+    // 添加舞种类型状态
+    const [danceTypes, setDanceTypes] = useState<string[]>([]);
+    const [loadingDanceTypes, setLoadingDanceTypes] = useState(false);
+
+    // 加载舞种数据
+    useEffect(() => {
+        const fetchDanceTypes = async () => {
+            setLoadingDanceTypes(true);
+            try {
+                const leadersData = await leaderApi.getAllLeaders();
+
+                // 从领队数据中提取舞种类型
+                const types = new Set<string>();
+
+                // 确保leadersData是数组
+                if (Array.isArray(leadersData)) {
+                    leadersData.forEach((leader: User) => {
+                        // 考虑两种可能的属性名
+                        const type = leader.dance_type || leader.danceType;
+                        if (type) {
+                            types.add(type);
+                        }
+                    });
+                } else if (leadersData.data && Array.isArray(leadersData.data)) {
+                    // 处理可能的包装在data属性中的数据
+                    leadersData.data.forEach((leader: User) => {
+                        const type = leader.dance_type || leader.danceType;
+                        if (type) {
+                            types.add(type);
+                        }
+                    });
+                }
+
+                // 添加公共课程选项
+                types.add('public');
+
+                setDanceTypes(Array.from(types));
+            } catch (err) {
+                console.error('获取舞种数据失败:', err);
+                // 出错时使用默认舞种列表
+                setDanceTypes(['breaking', 'popping', 'locking', 'hiphop', 'house', 'public']);
+            } finally {
+                setLoadingDanceTypes(false);
+            }
+        };
+
+        fetchDanceTypes();
+    }, []);
 
     // 表单更改处理函数
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -343,14 +392,20 @@ const CourseForm: React.FC<CourseFormProps> = ({
                                 onChange={handleChange}
                                 required
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                disabled={loadingDanceTypes}
                             >
                                 <option value="">请选择舞种</option>
-                                {DANCE_TYPES.map(type => (
+                                {danceTypes.map(type => (
                                     <option key={type} value={type}>
                                         {type === 'public' ? '公共课程' : type}
                                     </option>
                                 ))}
                             </select>
+                            {loadingDanceTypes && (
+                                <div className="mt-2 text-xs text-gray-500">
+                                    正在加载舞种数据...
+                                </div>
+                            )}
                             {formData.danceType && formData.danceType !== 'public' && (
                                 <div className="mt-2 text-xs text-gray-500">
                                     将自动关联到该舞种的领队账号
