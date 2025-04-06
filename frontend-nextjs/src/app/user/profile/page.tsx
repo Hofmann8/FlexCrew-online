@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { bookingApi, userApi } from '@/services/api';
+import { bookingApi, userApi, leaderApi } from '@/services/api';
 import { Course, DANCE_TYPES } from '@/types';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
@@ -49,6 +49,10 @@ export default function UserProfilePage() {
     const [danceTypeForm, setDanceTypeForm] = useState({
         dance_type: user?.dance_type || ''
     });
+
+    // 添加舞种列表状态
+    const [danceTypes, setDanceTypes] = useState<string[]>([]);
+    const [loadingDanceTypes, setLoadingDanceTypes] = useState(false);
 
     useEffect(() => {
         // 如果未登录，重定向到登录页面
@@ -163,6 +167,54 @@ export default function UserProfilePage() {
         }
     };
 
+    // 添加加载舞种列表的函数
+    const loadDanceTypes = async () => {
+        setLoadingDanceTypes(true);
+        try {
+            // 从领队数据获取舞种列表
+            const leadersData = await leaderApi.getAllLeaders();
+
+            // 从领队数据中提取舞种类型
+            const types = new Set<string>();
+
+            // 确保leadersData是数组
+            if (Array.isArray(leadersData)) {
+                leadersData.forEach((leader: any) => {
+                    // 考虑两种可能的属性名
+                    const type = leader.dance_type || leader.danceType;
+                    if (type) {
+                        types.add(type);
+                    }
+                });
+            } else if (leadersData.data && Array.isArray(leadersData.data)) {
+                // 处理可能的包装在data属性中的数据
+                leadersData.data.forEach((leader: any) => {
+                    const type = leader.dance_type || leader.danceType;
+                    if (type) {
+                        types.add(type);
+                    }
+                });
+            }
+
+            // 添加公共课程选项
+            types.add('public');
+
+            setDanceTypes(Array.from(types));
+        } catch (err) {
+            console.error('获取舞种数据失败:', err);
+            // 出错时使用默认舞种列表
+            setDanceTypes(['breaking', 'popping', 'locking', 'hiphop', 'house', 'public']);
+        } finally {
+            setLoadingDanceTypes(false);
+        }
+    };
+
+    // 打开舞种模态框时加载舞种列表
+    const openDanceTypeModal = () => {
+        setIsDanceTypeModalOpen(true);
+        loadDanceTypes();
+    };
+
     // 修改舞种提交
     const handleDanceTypeSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -172,11 +224,9 @@ export default function UserProfilePage() {
         try {
             setActionLoading(true);
 
-            // 确保同时提供dance_type和danceType，以适应不同的API格式
+            // 只提供dance_type参数，不需要提供role参数
             const apiData = {
-                role: user.role,
-                dance_type: danceTypeForm.dance_type,
-                danceType: danceTypeForm.dance_type
+                dance_type: danceTypeForm.dance_type
             };
 
             const response = await userApi.updateUserRole(String(user.id), apiData);
@@ -291,7 +341,7 @@ export default function UserProfilePage() {
                                 {/* 修改舞种按钮 - 仅对普通社员可见 */}
                                 {user?.role === 'member' && (
                                     <button
-                                        onClick={() => setIsDanceTypeModalOpen(true)}
+                                        onClick={openDanceTypeModal}
                                         className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
                                     >
                                         <div className="flex items-center">
@@ -488,6 +538,15 @@ export default function UserProfilePage() {
                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
                                     />
                                 </div>
+                                <div className="flex justify-end">
+                                    <Link
+                                        href="/auth/forgot-password"
+                                        onClick={() => setIsPasswordModalOpen(false)}
+                                        className="text-sm text-yellow-600 hover:text-yellow-800"
+                                    >
+                                        忘记密码？
+                                    </Link>
+                                </div>
                             </div>
                             <div className="mt-6 flex justify-end space-x-3">
                                 <button
@@ -524,12 +583,16 @@ export default function UserProfilePage() {
                                         value={danceTypeForm.dance_type}
                                         onChange={handleDanceTypeChange}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                        disabled={loadingDanceTypes}
                                     >
                                         <option value="">无舞种偏好</option>
-                                        {DANCE_TYPES.filter(type => type !== 'public').map(type => (
+                                        {danceTypes.filter(type => type !== 'public').map(type => (
                                             <option key={type} value={type}>{danceTypeNames[type] || type}</option>
                                         ))}
                                     </select>
+                                    {loadingDanceTypes && (
+                                        <div className="mt-2 text-xs text-gray-500">正在加载舞种数据...</div>
+                                    )}
                                 </div>
                             </div>
                             <div className="mt-6 flex justify-end space-x-3">

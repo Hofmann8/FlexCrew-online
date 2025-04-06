@@ -14,6 +14,8 @@ const AuthContext = createContext<AuthContextType>({
     register: async () => null,
     verifyEmail: async () => false,
     resendVerification: async () => false,
+    forgotPassword: async () => false,
+    resetPassword: async () => false,
     refreshUser: async () => false,
     refreshToken: async () => false,
 });
@@ -551,6 +553,87 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    // 忘记密码 - 发送重置验证码
+    const forgotPassword = async (email: string): Promise<boolean | { userId: number, email: string }> => {
+        try {
+            setIsLoading(true);
+            console.log('发送密码重置验证码...');
+
+            const response = await authApi.forgotPassword(email);
+            console.log('重置验证码发送响应:', response);
+
+            if (response.success) {
+                console.log('重置验证码已发送');
+
+                // 如果响应中包含userId，返回它
+                if (response.data && response.data.userId) {
+                    return {
+                        userId: response.data.userId,
+                        email: response.data.email || email
+                    };
+                }
+
+                return true;
+            }
+
+            console.error('重置验证码发送失败:', response.message);
+            return false;
+        } catch (error) {
+            console.error('重置验证码发送过程发生错误:', error);
+            return false;
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // 重置密码 - 验证并修改密码
+    const resetPassword = async (userId: number, code: string, newPassword: string): Promise<boolean> => {
+        try {
+            setIsLoading(true);
+            console.log('验证并重置密码...');
+
+            const response = await authApi.resetPassword(userId, code, newPassword);
+            console.log('重置密码响应:', response);
+
+            if (response.success && response.data && response.data.token) {
+                console.log('密码重置成功，保存认证信息');
+
+                const token = response.data.token;
+                const userData = response.data.user;
+
+                // 保存token和用户信息到localStorage
+                localStorage.setItem('auth_token', token);
+
+                if (userData) {
+                    // 数据兼容性处理：确保同时有dance_type和danceType字段
+                    if (userData.danceType && !userData.dance_type) {
+                        userData.dance_type = userData.danceType;
+                    } else if (userData.dance_type && !userData.danceType) {
+                        userData.danceType = userData.dance_type;
+                    }
+
+                    // 确保用户ID始终为字符串类型
+                    if (userData.id !== null && userData.id !== undefined) {
+                        userData.id = String(userData.id);
+                    }
+
+                    localStorage.setItem('user_info', JSON.stringify(userData));
+                    setUser(userData);
+                }
+
+                return true;
+            }
+
+            console.error('密码重置失败:', response.message);
+            return false;
+        } catch (error) {
+            console.error('密码重置过程发生错误:', error);
+            return false;
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     // 判断用户是否已认证
     const isAuthenticated = !!user;
 
@@ -564,6 +647,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         verifyEmail,
         resendVerification,
+        forgotPassword,
+        resetPassword,
         refreshUser,
         refreshToken,
     };

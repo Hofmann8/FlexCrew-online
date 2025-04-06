@@ -31,6 +31,10 @@ export default function AdminUsersPage() {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [currentUserId, setCurrentUserId] = useState<string | number | null>(null);
 
+    // 添加舞种列表状态
+    const [danceTypes, setDanceTypes] = useState<string[]>([]);
+    const [loadingDanceTypes, setLoadingDanceTypes] = useState(false);
+
     // 表单数据
     const [formData, setFormData] = useState<UserFormData>({
         username: '',
@@ -56,6 +60,48 @@ export default function AdminUsersPage() {
 
         fetchUsers(activeTab);
     }, [isAuthenticated, user, router, activeTab]);
+
+    // 添加加载舞种列表的函数
+    const loadDanceTypes = async () => {
+        setLoadingDanceTypes(true);
+        try {
+            // 从领队数据获取舞种列表
+            const leadersData = await api.leaders.getAllLeaders();
+
+            // 从领队数据中提取舞种类型
+            const types = new Set<string>();
+
+            // 确保leadersData是数组
+            if (Array.isArray(leadersData)) {
+                leadersData.forEach((leader: any) => {
+                    // 考虑两种可能的属性名
+                    const type = leader.dance_type || leader.danceType;
+                    if (type) {
+                        types.add(type);
+                    }
+                });
+            } else if (leadersData.data && Array.isArray(leadersData.data)) {
+                // 处理可能的包装在data属性中的数据
+                leadersData.data.forEach((leader: any) => {
+                    const type = leader.dance_type || leader.danceType;
+                    if (type) {
+                        types.add(type);
+                    }
+                });
+            }
+
+            // 添加公共课程选项
+            types.add('public');
+
+            setDanceTypes(Array.from(types));
+        } catch (err) {
+            console.error('获取舞种数据失败:', err);
+            // 出错时使用默认舞种列表
+            setDanceTypes(['breaking', 'popping', 'locking', 'hiphop', 'house', 'public']);
+        } finally {
+            setLoadingDanceTypes(false);
+        }
+    };
 
     // 获取用户列表
     const fetchUsers = async (tab: 'all' | 'admin' | 'leader' | 'member') => {
@@ -142,11 +188,10 @@ export default function AdminUsersPage() {
             const { role, dance_type } = formData;
             console.log(`更新用户 ${currentUserId} 角色:`, { role, dance_type });
 
-            // 确保同时提供dance_type和danceType，以适应不同的API格式
+            // 只提供dance_type，不再提供danceType
             const apiData = {
                 role,
-                dance_type,
-                danceType: dance_type // 同时提供两种格式
+                dance_type
             };
 
             const response = await api.users.updateUserRole(String(currentUserId), apiData);
@@ -195,7 +240,7 @@ export default function AdminUsersPage() {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // 打开编辑模态框
+    // 修改打开编辑模态框方法，加载舞种列表
     const openEditModal = (userData: User) => {
         setCurrentUserId(userData.id);
 
@@ -209,7 +254,28 @@ export default function AdminUsersPage() {
             role: userData.role as 'admin' | 'leader' | 'member',
             dance_type
         });
+
+        // 加载舞种列表
+        loadDanceTypes();
+
         setIsEditModalOpen(true);
+    };
+
+    // 修改打开创建用户模态框方法，加载舞种列表
+    const openCreateModal = () => {
+        setFormData({
+            username: '',
+            name: '',
+            email: '',
+            password: '',
+            role: 'member',
+            dance_type: ''
+        });
+
+        // 加载舞种列表
+        loadDanceTypes();
+
+        setIsCreateModalOpen(true);
     };
 
     // 打开删除确认模态框
@@ -247,6 +313,16 @@ export default function AdminUsersPage() {
             </div>
         );
     }
+
+    // 舞种类型映射
+    const danceTypeNames: Record<string, string> = {
+        'breaking': 'Breaking',
+        'popping': 'Popping',
+        'locking': 'Locking',
+        'hiphop': 'Hip-hop',
+        'house': 'House',
+        'public': '公共课程'
+    };
 
     return (
         <main className="pt-16">
@@ -293,7 +369,7 @@ export default function AdminUsersPage() {
 
                     {/* 创建用户按钮 */}
                     <button
-                        onClick={() => setIsCreateModalOpen(true)}
+                        onClick={openCreateModal}
                         className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
                     >
                         添加用户
@@ -442,12 +518,18 @@ export default function AdminUsersPage() {
                                             value={formData.dance_type}
                                             onChange={handleFormChange}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                            disabled={loadingDanceTypes}
                                         >
                                             <option value="">无</option>
-                                            {DANCE_TYPES.filter(type => type !== 'public').map(type => (
-                                                <option key={type} value={type}>{type}</option>
+                                            {danceTypes.filter(type => type !== 'public').map(type => (
+                                                <option key={type} value={type}>
+                                                    {danceTypeNames[type] || type}
+                                                </option>
                                             ))}
                                         </select>
+                                        {loadingDanceTypes && (
+                                            <div className="mt-2 text-xs text-gray-500">正在加载舞种数据...</div>
+                                        )}
                                     </div>
                                 ) : null}
                             </div>
@@ -500,12 +582,18 @@ export default function AdminUsersPage() {
                                             value={formData.dance_type}
                                             onChange={handleFormChange}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                            disabled={loadingDanceTypes}
                                         >
                                             <option value="">无</option>
-                                            {DANCE_TYPES.filter(type => type !== 'public').map(type => (
-                                                <option key={type} value={type}>{type}</option>
+                                            {danceTypes.filter(type => type !== 'public').map(type => (
+                                                <option key={type} value={type}>
+                                                    {danceTypeNames[type] || type}
+                                                </option>
                                             ))}
                                         </select>
+                                        {loadingDanceTypes && (
+                                            <div className="mt-2 text-xs text-gray-500">正在加载舞种数据...</div>
+                                        )}
                                     </div>
                                 ) : null}
                             </div>

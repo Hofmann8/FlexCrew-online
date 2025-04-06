@@ -1185,9 +1185,16 @@ def create_user():
 @api_bp.route('/users/<int:user_id>/role', methods=['PUT'])
 @jwt_required()
 def update_user_role(user_id):
-    """更新用户角色和舞种（仅管理员）"""
+    """更新用户角色和舞种（管理员可更新角色，普通用户可更新自己的舞种）"""
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
+    
+    # 确保当前用户存在
+    if not current_user:
+        return jsonify({
+            'success': False,
+            'message': '当前用户不存在'
+        }), 401
     
     # 获取目标用户
     target_user = User.query.get(user_id)
@@ -1199,39 +1206,39 @@ def update_user_role(user_id):
     
     data = request.get_json()
     
+    # 打印调试信息
+    print(f"更新用户角色: current_user_id={current_user_id}, user_id={user_id}, current_user.role={current_user.role}, data={data}", file=sys.stderr)
+    
     # 权限检查 - 普通用户只能修改自己的信息
-    if current_user.role != 'admin' and current_user_id != user_id:
+    if current_user.role != 'admin' and int(current_user_id) != int(user_id):
         return jsonify({
             'success': False,
             'message': '无权更新其他用户信息'
         }), 403
     
-    # 验证角色 - 普通用户不能修改自己的角色
-    if 'role' in data:
-        if current_user.role != 'admin' and current_user_id == user_id:
-            # 普通用户尝试修改自己的角色，忽略此参数
-            pass
-        else:
-            # 管理员可以修改角色
-            valid_roles = ['admin', 'leader', 'member']
-            if data['role'] not in valid_roles:
+    # 角色更新 - 只有管理员可以修改角色
+    if 'role' in data and current_user.role == 'admin':
+        valid_roles = ['admin', 'leader', 'member']
+        if data['role'] not in valid_roles:
+            return jsonify({
+                'success': False,
+                'message': f'无效的角色，有效值为: {", ".join(valid_roles)}'
+            }), 400
+        
+        # 对于领队，必须指定舞种
+        if data['role'] == 'leader':
+            # 兼容两种参数格式
+            dance_type = data.get('dance_type') or data.get('danceType')
+            if not dance_type:
                 return jsonify({
                     'success': False,
-                    'message': f'无效的角色，有效值为: {", ".join(valid_roles)}'
+                    'message': '领队必须指定舞种类型'
                 }), 400
-            
-            # 对于领队，必须指定舞种
-            if data['role'] == 'leader':
-                # 兼容两种参数格式
-                dance_type = data.get('dance_type') or data.get('danceType')
-                if not dance_type:
-                    return jsonify({
-                        'success': False,
-                        'message': '领队必须指定舞种类型'
-                    }), 400
-                target_user.role = data['role']
+        
+        # 更新用户角色
+        target_user.role = data['role']
     
-    # 更新舞种（允许任何角色设置舞种，包括普通成员）
+    # 更新舞种（允许任何用户设置自己的舞种偏好）
     # 兼容两种参数格式
     dance_type = None
     if 'dance_type' in data:
@@ -1500,8 +1507,8 @@ def get_user_booking_records():
             'message': '用户不存在'
         }), 404
     
-    # 获取用户所有预订（包括已取消的），按创建时间倒序排列
-    bookings = Booking.query.filter_by(user_id=current_user_id).order_by(Booking.created_at.desc()).all()
+    # 只获取用户状态为 confirmed 的预订，按创建时间倒序排列
+    bookings = Booking.query.filter_by(user_id=current_user_id, status='confirmed').order_by(Booking.created_at.desc()).all()
     
     # 构建响应数据
     result = []

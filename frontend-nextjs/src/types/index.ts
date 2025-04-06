@@ -171,6 +171,8 @@ export interface AuthContextType {
     register: (username: string, name: string, email: string, password: string) => Promise<RegisterResponse | null>;
     verifyEmail: (userId: number, code: string) => Promise<boolean>;
     resendVerification: (email: string) => Promise<boolean>;
+    forgotPassword: (email: string) => Promise<boolean | { userId: number, email: string }>;
+    resetPassword: (userId: number, code: string, newPassword: string) => Promise<boolean>;
     refreshUser: () => Promise<boolean>;
     refreshToken: () => Promise<boolean>;
 }

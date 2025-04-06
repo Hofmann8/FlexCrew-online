@@ -3,7 +3,7 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from app.auth import auth_bp
 from app.models.user import User
 from app import db
-from app.utils.email import is_valid_dlut_email, generate_verification_code, get_verification_code_expiry, send_verification_email
+from app.utils.email import is_valid_dlut_email, generate_verification_code, get_verification_code_expiry, send_verification_email, send_password_reset_email
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
 from flask import current_app
@@ -488,4 +488,145 @@ def logout():
         return jsonify({
             'success': False,
             'message': f'登出失败: {str(e)}'
+        }), 500
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    """发送密码重置验证码"""
+    try:
+        data = request.get_json()
+        
+        # 验证必填字段
+        if 'email' not in data:
+            return jsonify({
+                'success': False,
+                'message': '缺少必要参数：email'
+            }), 400
+            
+        email = data['email']
+        
+        # 查询用户
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            # 出于安全考虑，不要告诉请求者该邮箱未注册
+            return jsonify({
+                'success': True,
+                'message': '如果邮箱已注册，验证码已发送，请查收邮件'
+            }), 200
+            
+        # 生成新验证码
+        verification_code = generate_verification_code()
+        expiry = get_verification_code_expiry()
+        
+        # 更新用户验证码
+        user.email_verify_code = verification_code
+        user.email_verify_code_expires = expiry
+        
+        db.session.commit()
+        
+        # 发送密码重置邮件
+        send_success = send_password_reset_email(email, verification_code)
+        
+        if not send_success:
+            return jsonify({
+                'success': False,
+                'message': '验证码邮件发送失败，请稍后再试'
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'userId': user.id,
+                'email': user.email
+            },
+            'message': '密码重置验证码已发送，请查收邮件'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'发送失败: {str(e)}'
+        }), 500
+
+@auth_bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    """验证密码重置验证码并修改密码"""
+    try:
+        data = request.get_json()
+        
+        # 验证必填字段
+        required_fields = ['userId', 'code', 'newPassword']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False,
+                    'message': f'缺少必要参数：{field}'
+                }), 400
+            
+        user_id = data['userId']
+        code = data['code']
+        new_password = data['newPassword']
+        
+        # 验证密码长度
+        if len(new_password) < 6:
+            return jsonify({
+                'success': False,
+                'message': '密码长度不能少于6个字符'
+            }), 400
+        
+        # 查询用户
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '用户不存在'
+            }), 404
+            
+        # 验证码验证
+        if not user.email_verify_code or user.email_verify_code != code:
+            return jsonify({
+                'success': False,
+                'message': '验证码错误'
+            }), 400
+            
+        # 检查验证码是否过期
+        if not user.email_verify_code_expires or user.email_verify_code_expires < datetime.utcnow():
+            return jsonify({
+                'success': False,
+                'message': '验证码已过期，请重新获取'
+            }), 400
+            
+        # 更新密码
+        user.password = new_password
+        
+        # 清除验证码
+        user.email_verify_code = None
+        user.email_verify_code_expires = None
+        
+        db.session.commit()
+        
+        # 生成JWT令牌
+        access_token = create_access_token(identity=str(user.id))
+        
+        # 创建响应对象
+        response = jsonify({
+            'success': True,
+            'data': {
+                'user': user.to_dict(),
+                'token': access_token
+            },
+            'message': '密码重置成功'
+        })
+        
+        # 同时设置Cookie
+        set_access_cookies(response, access_token)
+        
+        return response, 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'密码重置失败: {str(e)}'
         }), 500 

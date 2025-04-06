@@ -112,4 +112,83 @@ def send_verification_email(to_email, verification_code):
     except Exception as e:
         current_app.logger.error(f"发送邮件失败: {str(e)}")
         current_app.logger.error(traceback.format_exc())
+        return False
+
+def send_password_reset_email(to_email, verification_code):
+    """发送密码重置验证码邮件
+    
+    Args:
+        to_email: 接收邮件的地址
+        verification_code: 验证码
+        
+    Returns:
+        bool: 是否发送成功
+    """
+    # 记录启动发送邮件的请求
+    current_app.logger.info(f"开始发送密码重置邮件，目标邮箱: {to_email}")
+    
+    # 检查邮件服务配置
+    if not MAIL_USERNAME or not MAIL_PASSWORD:
+        current_app.logger.error("邮件服务未配置，请设置环境变量 MAIL_USERNAME 和 MAIL_PASSWORD")
+        return False
+    
+    # 记录邮件配置信息（不包含密码）
+    current_app.logger.info(f"邮件配置: 服务器={MAIL_SERVER}, 端口={MAIL_PORT}, SSL={MAIL_USE_SSL}, TLS={MAIL_USE_TLS}, 用户名={MAIL_USERNAME}")
+    
+    # 邮件内容
+    subject = "街舞社账号密码重置"
+    body = f"""
+    <html>
+    <body>
+        <p>您好，</p>
+        <p>您最近请求重置大连理工大学街舞社账号密码。您的验证码是：</p>
+        <h2 style="color: #4A90E2;">{verification_code}</h2>
+        <p>验证码有效期为10分钟，请尽快完成密码重置。</p>
+        <p>如果您没有请求重置密码，请忽略此邮件，您的账号仍然安全。</p>
+        <p>——大连理工大学街舞社 FlexCrew</p>
+    </body>
+    </html>
+    """
+    
+    # 创建邮件
+    message = MIMEMultipart()
+    message['From'] = MAIL_USERNAME
+    message['To'] = to_email
+    message['Subject'] = subject
+    
+    # 添加HTML内容
+    message.attach(MIMEText(body, 'html'))
+    
+    try:
+        current_app.logger.info("正在连接到SMTP服务器...")
+        
+        # 连接到SMTP服务器
+        if MAIL_USE_SSL:
+            current_app.logger.info(f"使用SSL连接到 {MAIL_SERVER}:{MAIL_PORT}")
+            server = smtplib.SMTP_SSL(MAIL_SERVER, MAIL_PORT)
+        else:
+            current_app.logger.info(f"使用普通连接到 {MAIL_SERVER}:{MAIL_PORT}")
+            server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT)
+            if MAIL_USE_TLS:
+                current_app.logger.info("启用TLS加密")
+                server.starttls()  # 启用TLS加密
+        
+        # 登录
+        current_app.logger.info(f"正在登录邮箱账号: {MAIL_USERNAME}")
+        server.login(MAIL_USERNAME, MAIL_PASSWORD)
+        
+        # 发送邮件
+        current_app.logger.info(f"正在发送邮件到: {to_email}")
+        server.send_message(message)
+        
+        # 关闭连接
+        current_app.logger.info("关闭SMTP连接")
+        server.quit()
+        
+        current_app.logger.info(f"成功发送密码重置验证码到 {to_email}")
+        return True
+    
+    except Exception as e:
+        current_app.logger.error(f"发送邮件失败: {str(e)}")
+        current_app.logger.error(traceback.format_exc())
         return False 

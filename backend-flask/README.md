@@ -15,6 +15,17 @@ DATABASE_URL=sqlite:///streetdance.db
 
 ## 最近更新 (2025-04-05)
 
+### 新增忘记密码功能
+
+1. **密码重置流程**：
+   - 新增了完整的忘记密码功能，支持用户通过邮箱验证重置密码
+   - 采用安全的两步流程：先发送验证码到邮箱，验证成功后才能修改密码
+   - 保留了邮箱验证记录，提高了账号安全性
+
+2. **新增API接口**：
+   - `/api/auth/forgot-password` - 发送密码重置验证码到用户邮箱
+   - `/api/auth/reset-password` - 验证重置码并修改密码
+
 ### 代码优化与安全性提升
 
 1. **代码整合与简化**：
@@ -257,7 +268,7 @@ DATABASE_URL=sqlite:///streetdance.db
 
 1. 为个人信息页面提供的新增API接口:
    - `/api/bookings/user` - 获取用户预约记录（包含完整课程信息）
-   - 修复 `/api/users/{userId}/role` - 支持普通用户修改舞种偏好
+   - 修复 `/api/users/{userId}/role` - 修复了权限验证逻辑，现在普通用户可以正确修改自己的舞种偏好
    - 更新 `/api/courses/{courseId}/cancel` - 移除角色限制，允许所有用户取消预约
 
 2. 数据模型更新:
@@ -450,10 +461,10 @@ flask run
   }
   ```
 
-#### 2. 验证邮箱
-
+#### 2. **邮箱验证**
 - **URL**: `/api/auth/verify-email`
 - **方法**: `POST`
+- **说明**: 验证用户邮箱
 - **请求参数**:
   ```json
   {
@@ -461,7 +472,6 @@ flask run
     "code": "123456"
   }
   ```
-- **说明**: 用户填写收到的验证码完成邮箱验证。验证成功后会返回用户信息和令牌。
 - **返回示例**:
   ```json
   {
@@ -470,11 +480,10 @@ flask run
       "user": {
         "id": 8,
         "username": "student",
-        "name": "张三",
+        "name": "学生",
         "email": "student@mail.dlut.edu.cn",
         "role": "member",
-        "danceType": null,
-        "emailVerified": true
+        "canBookCourse": true
       },
       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
     },
@@ -482,17 +491,16 @@ flask run
   }
   ```
 
-#### 3. 重新发送验证码
-
+#### 3. **重发验证码**
 - **URL**: `/api/auth/resend-verification`
 - **方法**: `POST`
+- **说明**: 重新发送邮箱验证码
 - **请求参数**:
   ```json
   {
     "email": "student@mail.dlut.edu.cn"
   }
   ```
-- **说明**: 如果未收到验证码或验证码过期，可以请求重新发送验证码。
 - **返回示例**:
   ```json
   {
@@ -505,7 +513,60 @@ flask run
   }
   ```
 
-#### 4. 用户登录
+#### 4. **忘记密码**
+- **URL**: `/api/auth/forgot-password`
+- **方法**: `POST`
+- **说明**: 发送密码重置验证码到用户邮箱
+- **请求参数**:
+  ```json
+  {
+    "email": "student@mail.dlut.edu.cn"
+  }
+  ```
+- **返回示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "userId": 8,
+      "email": "student@mail.dlut.edu.cn"
+    },
+    "message": "密码重置验证码已发送，请查收邮件"
+  }
+  ```
+
+#### 5. **重置密码**
+- **URL**: `/api/auth/reset-password`
+- **方法**: `POST`
+- **说明**: 验证重置码并修改密码
+- **请求参数**:
+  ```json
+  {
+    "userId": 8,
+    "code": "123456",
+    "newPassword": "新密码"
+  }
+  ```
+- **返回示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "user": {
+        "id": 8,
+        "username": "student",
+        "name": "学生",
+        "email": "student@mail.dlut.edu.cn",
+        "role": "member",
+        "canBookCourse": true
+      },
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    },
+    "message": "密码重置成功"
+  }
+  ```
+
+#### 6. **用户登录**
 
 - **URL**: `/api/auth/login`
 - **方法**: `POST`
@@ -517,7 +578,7 @@ flask run
   }
   ```
 
-#### 5. 获取当前用户信息
+#### 7. 获取当前用户信息
 
 - **URL**: `/api/users/me`
 - **方法**: `GET`
@@ -995,7 +1056,7 @@ flask run
 - **方法**: `GET`
 - **权限**: 所有登录用户
 - **认证**: 需要JWT令牌（`Bearer Token`）
-- **功能描述**: 获取当前用户的所有预约记录（包括已取消的），按预约时间倒序排列，包含完整的课程信息
+- **功能描述**: 获取当前用户的所有有效预约记录（状态为confirmed），按预约时间倒序排列，包含完整的课程信息
 - **返回格式**:
   ```json
   {
@@ -1005,7 +1066,7 @@ flask run
         "id": 25,
         "userId": 3,
         "courseId": 2,
-        "status": "confirmed", // 或 "canceled"
+        "status": "confirmed",
         "createdAt": "2023-03-28T15:30:00Z",
         "updatedAt": "2023-03-29T10:15:30Z",
         // 课程详细信息

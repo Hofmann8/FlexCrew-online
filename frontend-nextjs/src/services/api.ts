@@ -219,6 +219,22 @@ export const authApi = {
         });
     },
 
+    // 忘记密码 - 发送重置验证码
+    forgotPassword: async (email: string) => {
+        return apiRequest('/auth/forgot-password', {
+            method: 'POST',
+            body: JSON.stringify({ email }),
+        });
+    },
+
+    // 重置密码 - 验证并修改密码
+    resetPassword: async (userId: number, code: string, newPassword: string) => {
+        return apiRequest('/auth/reset-password', {
+            method: 'POST',
+            body: JSON.stringify({ userId, code, newPassword }),
+        });
+    },
+
     // 获取当前用户信息
     getCurrentUser: async () => {
         return apiRequest('/users/me');
@@ -453,17 +469,16 @@ export const userApi = {
     },
 
     // 更新用户角色和舞种（仅限管理员）
-    updateUserRole: async (userId: string, data: { role: string, dance_type?: string, danceType?: string }) => {
+    updateUserRole: async (userId: string, data: { role?: string, dance_type?: string, danceType?: string }) => {
         // 确保使用后端API要求的字段名
         console.log('更新用户角色和舞种，原始数据:', data);
 
         // 深拷贝数据对象，避免修改原始对象
         const apiData = { ...data };
 
-        // 确保发送dance_type而不是danceType
+        // 确保发送dance_type
         if (data.danceType && !data.dance_type) {
             apiData.dance_type = data.danceType;
-            delete apiData.danceType;
         }
 
         console.log('发送给API的数据:', apiData);
