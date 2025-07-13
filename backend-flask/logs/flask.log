@@ -489,3 +489,252 @@
 2025-04-06 11:02:58,559 INFO: 正在发送邮件到: alexphant@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:181]
 2025-04-06 11:03:00,345 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:185]
 2025-04-06 11:03:00,573 INFO: 成功发送密码重置验证码到 alexphant@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:188]
+2025-04-06 12:20:20,869 INFO: 街舞社API服务启动 [in /root/flexcrewonline/backend-flask/app/__init__.py:62]
+2025-04-06 12:20:20,921 INFO: 应用初始化完成 [in /root/flexcrewonline/backend-flask/app/__init__.py:145]
+2025-04-06 12:30:29,899 INFO: 开始邮件发送过程，目标邮箱: Lvchuhan@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-06 12:30:29,899 INFO: 邮箱 Lvchuhan@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-06 12:30:29,899 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-06 12:30:29,900 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-06 12:30:29,900 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-06 12:32:42,830 ERROR: 发送邮件失败: [Errno 110] Connection timed out [in /root/flexcrewonline/backend-flask/app/utils/email.py:113]
+2025-04-06 12:32:42,869 ERROR: Traceback (most recent call last):
+  File "/root/flexcrewonline/backend-flask/app/utils/email.py", line 92, in send_verification_email
+    server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/smtplib.py", line 255, in __init__
+    (code, msg) = self.connect(host, port)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/smtplib.py", line 341, in connect
+    self.sock = self._get_socket(host, port, self.timeout)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/smtplib.py", line 312, in _get_socket
+    return socket.create_connection((host, port), timeout,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/socket.py", line 851, in create_connection
+    raise exceptions[0]
+  File "/usr/lib64/python3.11/socket.py", line 836, in create_connection
+    sock.connect(sa)
+TimeoutError: [Errno 110] Connection timed out
+ [in /root/flexcrewonline/backend-flask/app/utils/email.py:114]
+2025-04-06 12:32:42,869 WARNING: 验证码邮件发送失败，但用户已创建: Lvchuhan@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/auth/routes.py:78]
+2025-04-06 12:34:24,686 INFO: 开始邮件发送过程，目标邮箱: alexphant@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-06 12:34:24,686 INFO: 邮箱 alexphant@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-06 12:34:24,686 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-06 12:34:24,687 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-06 12:34:24,687 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-06 12:34:25,485 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:94]
+2025-04-06 12:34:26,002 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:98]
+2025-04-06 12:34:26,812 INFO: 正在发送邮件到: alexphant@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:102]
+2025-04-06 12:34:28,237 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:106]
+2025-04-06 12:34:28,405 INFO: 成功发送验证码到 alexphant@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:109]
+2025-04-06 12:37:39,052 INFO: 开始邮件发送过程，目标邮箱: alexphant@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-06 12:37:39,052 INFO: 邮箱 alexphant@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-06 12:37:39,052 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-06 12:37:39,052 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-06 12:37:39,053 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-06 12:37:39,585 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:94]
+2025-04-06 12:37:40,833 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:98]
+2025-04-06 12:37:41,606 INFO: 正在发送邮件到: alexphant@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:102]
+2025-04-06 12:37:43,083 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:106]
+2025-04-06 12:37:43,264 INFO: 成功发送验证码到 alexphant@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:109]
+2025-04-06 12:40:33,937 INFO: 开始邮件发送过程，目标邮箱: lvchuhan@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-06 12:40:33,937 INFO: 邮箱 lvchuhan@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-06 12:40:33,937 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-06 12:40:33,938 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-06 12:40:33,938 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-06 12:40:34,605 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:94]
+2025-04-06 12:40:35,143 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:98]
+2025-04-06 12:40:35,911 INFO: 正在发送邮件到: lvchuhan@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:102]
+2025-04-06 12:40:37,304 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:106]
+2025-04-06 12:40:37,478 INFO: 成功发送验证码到 lvchuhan@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:109]
+2025-04-06 16:10:34,623 INFO: 开始邮件发送过程，目标邮箱: myy19043345282@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-06 16:10:34,623 INFO: 邮箱 myy19043345282@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-06 16:10:34,623 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-06 16:10:34,623 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-06 16:10:34,624 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-06 16:10:35,337 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:94]
+2025-04-06 16:10:35,815 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:98]
+2025-04-06 16:10:36,506 INFO: 正在发送邮件到: myy19043345282@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:102]
+2025-04-06 16:10:37,882 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:106]
+2025-04-06 16:10:38,041 INFO: 成功发送验证码到 myy19043345282@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:109]
+2025-04-06 16:54:49,467 INFO: 开始邮件发送过程，目标邮箱: 20231162010@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-06 16:54:49,467 INFO: 邮箱 20231162010@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-06 16:54:49,468 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-06 16:54:49,468 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-06 16:54:49,468 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-06 16:54:50,472 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:94]
+2025-04-06 16:54:51,103 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:98]
+2025-04-06 16:54:51,966 INFO: 正在发送邮件到: 20231162010@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:102]
+2025-04-06 16:54:53,472 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:106]
+2025-04-06 16:54:53,675 INFO: 成功发送验证码到 20231162010@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:109]
+2025-04-06 22:22:39,715 INFO: 开始邮件发送过程，目标邮箱: 20241034675@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-06 22:22:39,715 INFO: 邮箱 20241034675@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-06 22:22:39,715 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-06 22:22:39,715 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-06 22:22:39,715 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-06 22:23:09,540 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:94]
+2025-04-06 22:23:10,041 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:98]
+2025-04-06 22:23:10,763 INFO: 正在发送邮件到: 20241034675@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:102]
+2025-04-06 22:23:13,887 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:106]
+2025-04-06 22:23:14,054 INFO: 成功发送验证码到 20241034675@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:109]
+2025-04-06 22:24:42,454 INFO: 开始邮件发送过程，目标邮箱: fzhh3954@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-06 22:24:42,454 INFO: 邮箱 fzhh3954@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-06 22:24:42,454 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-06 22:24:42,455 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-06 22:24:42,455 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-06 22:24:42,930 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:94]
+2025-04-06 22:24:44,414 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:98]
+2025-04-06 22:24:45,109 INFO: 正在发送邮件到: fzhh3954@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:102]
+2025-04-06 22:24:46,371 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:106]
+2025-04-06 22:24:46,532 INFO: 成功发送验证码到 fzhh3954@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:109]
+2025-04-07 08:40:34,533 INFO: 开始邮件发送过程，目标邮箱: 15304830152@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-07 08:40:34,533 INFO: 邮箱 15304830152@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-07 08:40:34,533 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-07 08:40:34,533 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-07 08:40:34,533 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-07 08:42:48,526 ERROR: 发送邮件失败: [Errno 110] Connection timed out [in /root/flexcrewonline/backend-flask/app/utils/email.py:113]
+2025-04-07 08:42:48,527 ERROR: Traceback (most recent call last):
+  File "/root/flexcrewonline/backend-flask/app/utils/email.py", line 92, in send_verification_email
+    server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/smtplib.py", line 255, in __init__
+    (code, msg) = self.connect(host, port)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/smtplib.py", line 341, in connect
+    self.sock = self._get_socket(host, port, self.timeout)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/smtplib.py", line 312, in _get_socket
+    return socket.create_connection((host, port), timeout,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/socket.py", line 851, in create_connection
+    raise exceptions[0]
+  File "/usr/lib64/python3.11/socket.py", line 836, in create_connection
+    sock.connect(sa)
+TimeoutError: [Errno 110] Connection timed out
+ [in /root/flexcrewonline/backend-flask/app/utils/email.py:114]
+2025-04-07 08:42:48,527 WARNING: 验证码邮件发送失败，但用户已创建: 15304830152@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/auth/routes.py:78]
+2025-04-07 11:08:10,412 INFO: 开始邮件发送过程，目标邮箱: 15242867976@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-07 11:08:10,412 INFO: 邮箱 15242867976@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-07 11:08:10,412 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-07 11:08:10,413 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-07 11:08:10,413 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-07 11:08:11,469 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:94]
+2025-04-07 11:08:13,016 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:98]
+2025-04-07 11:08:14,026 INFO: 正在发送邮件到: 15242867976@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:102]
+2025-04-07 11:08:16,119 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:106]
+2025-04-07 11:08:16,364 INFO: 成功发送验证码到 15242867976@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:109]
+2025-04-07 13:22:05,681 INFO: 开始邮件发送过程，目标邮箱: 2971907209@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-07 13:22:05,681 INFO: 邮箱 2971907209@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-07 13:22:05,682 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-07 13:22:05,682 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-07 13:22:05,682 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-07 13:22:06,776 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:94]
+2025-04-07 13:22:07,598 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:98]
+2025-04-07 13:22:08,582 INFO: 正在发送邮件到: 2971907209@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:102]
+2025-04-07 13:22:10,428 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:106]
+2025-04-07 13:22:10,703 INFO: 成功发送验证码到 2971907209@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:109]
+2025-04-07 16:29:52,619 INFO: 开始邮件发送过程，目标邮箱: liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-07 16:29:52,619 INFO: 邮箱 liangjingwenr@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-07 16:29:52,619 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-07 16:29:52,620 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-07 16:29:52,620 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-07 16:29:53,653 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:94]
+2025-04-07 16:29:54,422 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:98]
+2025-04-07 16:29:55,383 INFO: 正在发送邮件到: liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:102]
+2025-04-07 16:29:57,112 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:106]
+2025-04-07 16:29:57,357 INFO: 成功发送验证码到 liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:109]
+2025-04-15 09:57:09,363 INFO: 开始邮件发送过程，目标邮箱: Heping14704100707@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-15 09:57:09,364 INFO: 邮箱 Heping14704100707@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-15 09:57:09,364 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-15 09:57:09,364 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-15 09:57:09,364 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-15 09:58:03,487 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:94]
+2025-04-15 09:58:04,237 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:98]
+2025-04-15 09:58:05,099 INFO: 正在发送邮件到: Heping14704100707@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:102]
+2025-04-15 09:58:07,014 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:106]
+2025-04-15 09:58:07,254 INFO: 成功发送验证码到 Heping14704100707@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:109]
+2025-04-16 15:25:36,836 INFO: 开始发送密码重置邮件，目标邮箱: liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:128]
+2025-04-16 15:25:36,836 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:136]
+2025-04-16 15:25:36,836 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:163]
+2025-04-16 15:25:36,836 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:170]
+2025-04-16 15:25:37,848 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:173]
+2025-04-16 15:25:38,614 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:177]
+2025-04-16 15:25:39,587 INFO: 正在发送邮件到: liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:181]
+2025-04-16 15:25:41,694 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:185]
+2025-04-16 15:25:41,970 INFO: 成功发送密码重置验证码到 liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:188]
+2025-04-21 15:14:24,722 INFO: 开始邮件发送过程，目标邮箱: 20241041055@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:41]
+2025-04-21 15:14:24,723 INFO: 邮箱 20241041055@mail.dlut.edu.cn 是有效的大连理工大学邮箱 [in /root/flexcrewonline/backend-flask/app/utils/email.py:46]
+2025-04-21 15:14:24,723 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:57]
+2025-04-21 15:14:24,723 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:84]
+2025-04-21 15:14:24,724 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:91]
+2025-04-21 15:16:40,398 ERROR: 发送邮件失败: [Errno 110] Connection timed out [in /root/flexcrewonline/backend-flask/app/utils/email.py:113]
+2025-04-21 15:16:40,399 ERROR: Traceback (most recent call last):
+  File "/root/flexcrewonline/backend-flask/app/utils/email.py", line 92, in send_verification_email
+    server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/smtplib.py", line 255, in __init__
+    (code, msg) = self.connect(host, port)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/smtplib.py", line 341, in connect
+    self.sock = self._get_socket(host, port, self.timeout)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/smtplib.py", line 312, in _get_socket
+    return socket.create_connection((host, port), timeout,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/socket.py", line 851, in create_connection
+    raise exceptions[0]
+  File "/usr/lib64/python3.11/socket.py", line 836, in create_connection
+    sock.connect(sa)
+TimeoutError: [Errno 110] Connection timed out
+ [in /root/flexcrewonline/backend-flask/app/utils/email.py:114]
+2025-04-21 15:16:40,399 WARNING: 验证码邮件发送失败，但用户已创建: 20241041055@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/auth/routes.py:78]
+2025-05-26 15:16:13,221 INFO: 开始发送密码重置邮件，目标邮箱: liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:128]
+2025-05-26 15:16:13,233 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:136]
+2025-05-26 15:16:13,233 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:163]
+2025-05-26 15:16:13,234 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:170]
+2025-05-26 15:17:25,870 INFO: 开始发送密码重置邮件，目标邮箱: liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:128]
+2025-05-26 15:17:25,870 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:136]
+2025-05-26 15:17:25,870 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:163]
+2025-05-26 15:17:25,870 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:170]
+2025-05-26 15:17:27,000 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:173]
+2025-05-26 15:17:27,815 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:177]
+2025-05-26 15:17:29,815 INFO: 正在发送邮件到: liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:181]
+2025-05-26 15:17:32,270 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:185]
+2025-05-26 15:17:32,509 INFO: 成功发送密码重置验证码到 liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:188]
+2025-05-26 15:17:33,337 INFO: 开始发送密码重置邮件，目标邮箱: liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:128]
+2025-05-26 15:17:33,338 INFO: 邮件配置: 服务器=smtp.gmail.com, 端口=587, SSL=False, TLS=True, 用户名=dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:136]
+2025-05-26 15:17:33,338 INFO: 正在连接到SMTP服务器... [in /root/flexcrewonline/backend-flask/app/utils/email.py:163]
+2025-05-26 15:17:33,338 INFO: 使用普通连接到 smtp.gmail.com:587 [in /root/flexcrewonline/backend-flask/app/utils/email.py:170]
+2025-05-26 15:17:34,954 INFO: 启用TLS加密 [in /root/flexcrewonline/backend-flask/app/utils/email.py:173]
+2025-05-26 15:17:37,529 INFO: 正在登录邮箱账号: dut.flexcrew@gmail.com [in /root/flexcrewonline/backend-flask/app/utils/email.py:177]
+2025-05-26 15:17:39,265 INFO: 正在发送邮件到: liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:181]
+2025-05-26 15:17:41,386 INFO: 关闭SMTP连接 [in /root/flexcrewonline/backend-flask/app/utils/email.py:185]
+2025-05-26 15:17:41,632 INFO: 成功发送密码重置验证码到 liangjingwenr@mail.dlut.edu.cn [in /root/flexcrewonline/backend-flask/app/utils/email.py:188]
+2025-05-26 15:18:25,870 ERROR: 发送邮件失败: [Errno 110] Connection timed out [in /root/flexcrewonline/backend-flask/app/utils/email.py:192]
+2025-05-26 15:18:25,871 ERROR: Traceback (most recent call last):
+  File "/root/flexcrewonline/backend-flask/app/utils/email.py", line 171, in send_password_reset_email
+    server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/smtplib.py", line 255, in __init__
+    (code, msg) = self.connect(host, port)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/smtplib.py", line 341, in connect
+    self.sock = self._get_socket(host, port, self.timeout)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/smtplib.py", line 312, in _get_socket
+    return socket.create_connection((host, port), timeout,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/socket.py", line 851, in create_connection
+    raise exceptions[0]
+  File "/usr/lib64/python3.11/socket.py", line 836, in create_connection
+    sock.connect(sa)
+TimeoutError: [Errno 110] Connection timed out
+ [in /root/flexcrewonline/backend-flask/app/utils/email.py:193]
+2025-07-14 04:59:00,701 INFO: 街舞社API服务启动 [in /root/flexcrewonline/backend-flask/app/__init__.py:62]
+2025-07-14 04:59:00,936 INFO: 应用初始化完成 [in /root/flexcrewonline/backend-flask/app/__init__.py:145]
+2025-07-14 04:59:01,450 INFO: 街舞社API服务启动 [in /root/flexcrewonline/backend-flask/app/__init__.py:62]
+2025-07-14 04:59:01,483 INFO: 应用初始化完成 [in /root/flexcrewonline/backend-flask/app/__init__.py:145]
+2025-07-14 05:43:12,732 INFO: 街舞社API服务启动 [in /root/flexcrewonline/backend-flask/app/__init__.py:62]
+2025-07-14 05:43:12,815 INFO: 应用初始化完成 [in /root/flexcrewonline/backend-flask/app/__init__.py:145]
+2025-07-14 05:43:13,220 INFO: 街舞社API服务启动 [in /root/flexcrewonline/backend-flask/app/__init__.py:62]
+2025-07-14 05:43:13,253 INFO: 应用初始化完成 [in /root/flexcrewonline/backend-flask/app/__init__.py:145]

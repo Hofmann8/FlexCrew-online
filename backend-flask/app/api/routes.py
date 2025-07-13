@@ -696,11 +696,11 @@ def update_course(course_id):
             'message': '课程不存在'
         }), 404
     
-    # 检查权限 - 领队只能修改自己舞种的课程
-    if not user.is_admin() and course.leader_id != user.id:
+    # 检查权限 - 领队可以修改自己舞种的课程或自己创建的课程
+    if not user.is_admin() and course.leader_id != user.id and course.dance_type != user.dance_type:
         return jsonify({
             'success': False,
-            'message': '您只能修改自己创建的课程'
+            'message': '您只能修改自己舞种的课程或自己创建的课程'
         }), 403
     
     # 获取请求数据
